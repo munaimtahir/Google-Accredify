@@ -11,7 +11,10 @@ import {
   LogOut,
   ArrowLeft,
   Grid,
-  CalendarClock
+  CalendarClock,
+  FileCog,
+  BrainCircuit,
+  FolderOpen
 } from 'lucide-react';
 import { View } from '../App';
 
@@ -27,8 +30,15 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, toggleSidebar, onSwitchProject, projectName, isProjectActive }) => {
   
+  const globalItems = [
+    { id: 'projects', label: 'All Projects', icon: Grid },
+    { id: 'converter', label: 'CSV Converter', icon: FileCog }
+  ] as const;
+  
   const projectItems = [
     { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+    { id: 'analysis', label: 'AI Analysis', icon: BrainCircuit },
+    { id: 'library', label: 'Document Library', icon: FolderOpen },
     { id: 'upcoming', label: 'Upcoming Tasks', icon: CalendarClock },
     { id: 'checklist', label: 'Compliance Checklist', icon: CheckSquare },
     { id: 'reports', label: 'Reports & Audits', icon: FileBarChart },
@@ -66,22 +76,29 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, to
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
-          <button
-            onClick={() => {
-              onChangeView('projects');
-              onSwitchProject();
-              if (window.innerWidth < 1024) toggleSidebar();
-            }}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
-              currentView === 'projects'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' 
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <Grid size={20} className={`transition-colors ${currentView === 'projects' ? 'text-indigo-200' : 'text-slate-500 group-hover:text-white'}`} />
-            <span className="font-medium text-sm">All Projects</span>
-            {currentView === 'projects' && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300"></div>}
-          </button>
+          {globalItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentView === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  onChangeView(item.id as View);
+                  if(item.id === 'projects') onSwitchProject();
+                  if (window.innerWidth < 1024) toggleSidebar();
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Icon size={20} className={`transition-colors ${isActive ? 'text-indigo-200' : 'text-slate-500 group-hover:text-white'}`} />
+                <span className="font-medium text-sm">{item.label}</span>
+                {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300"></div>}
+              </button>
+            )
+          })}
 
           {isProjectActive && (
             <>

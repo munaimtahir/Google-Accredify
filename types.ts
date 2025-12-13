@@ -1,5 +1,4 @@
 
-
 export enum ComplianceStatus {
   NOT_STARTED = 'Not Started',
   IN_PROGRESS = 'In Progress',
@@ -24,6 +23,11 @@ export interface Evidence {
   fileName?: string; // For files & link text
   fileUrl?: string; // For files & link URL
   content?: string; // For notes
+  // New Fields for Drive Integration
+  driveFileId?: string;
+  driveViewLink?: string;
+  syncStatus?: 'synced' | 'pending' | 'error';
+  fileSize?: string; 
 }
 
 export interface FormField {
@@ -48,6 +52,17 @@ export interface Indicator {
   notes?: string;
   lastUpdated?: string; // ISO Date string (YYYY-MM-DD)
   formSchema?: FormField[];
+  aiAnalysis?: {
+    content: string;
+    timestamp: string;
+  };
+}
+
+export interface DriveConfig {
+  isConnected: boolean;
+  accountName?: string;
+  rootFolderId?: string;
+  lastSync?: string;
 }
 
 export interface Project {
@@ -56,6 +71,7 @@ export interface Project {
   description: string;
   indicators: Indicator[];
   createdAt: string;
+  driveConfig?: DriveConfig;
 }
 
 export interface StatMetric {

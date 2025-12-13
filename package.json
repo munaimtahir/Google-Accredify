@@ -15,7 +15,9 @@
     "recharts": "2.12.7",
     "lucide-react": "0.378.0",
     "jspdf": "2.5.1",
-    "jspdf-autotable": "3.8.2"
+    "jspdf-autotable": "3.8.2",
+    "pdfjs-dist": "4.3.136",
+    "mammoth": "1.7.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2 } from 'lucide-react';
-import { askComplianceAssistant } from '../services/geminiService';
+import { api } from '../services/api';
 import { Indicator } from '../types';
 
 interface AIAssistantProps {
@@ -42,11 +42,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ indicators }) => {
     setIsLoading(true);
 
     try {
-      const responseText = await askComplianceAssistant(userMessage.content, indicators);
+      const responseText = await api.askComplianceAssistant(userMessage.content, indicators);
       const aiMessage: Message = { role: 'ai', content: responseText || "I'm sorry, I couldn't generate a response.", timestamp: new Date() };
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
-       const errorMessage: Message = { role: 'ai', content: "Sorry, I encountered an error. Please try again.", timestamp: new Date() };
+       const errorMessage: Message = { role: 'ai', content: "Sorry, I encountered an error connecting to the AI service. Please try again.", timestamp: new Date() };
        setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);

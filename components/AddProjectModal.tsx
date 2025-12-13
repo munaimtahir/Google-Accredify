@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, FileSpreadsheet, Check, AlertTriangle, Info, Loader2, Download } from 'lucide-react';
+import { X, Upload, FileSpreadsheet, Check, AlertTriangle, Info, Loader2, Download, RefreshCw } from 'lucide-react';
 import { Project } from '../types';
 
 interface AddProjectModalProps {
@@ -24,8 +24,8 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ isOpen, onClose, onSa
       } else {
         setName('');
         setDescription('');
-        setFile(null);
       }
+      setFile(null); // Reset file on open
       setIsSubmitting(false);
     }
   }, [isOpen, projectToEdit]);
@@ -77,7 +77,7 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ isOpen, onClose, onSa
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 max-h-[80vh] overflow-y-auto space-y-6">
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Project Name</label>
@@ -87,9 +87,13 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ isOpen, onClose, onSa
               <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Briefly describe the purpose of this compliance checklist..." className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 h-24 resize-none"/>
             </div>
-            {!isEditing && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Upload Checklist (CSV)</label>
+          </div>
+          
+           <div className="space-y-4">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    {isEditing ? 'Update Indicators via CSV' : 'Upload Checklist (CSV)'}
+                </label>
+                {isEditing && <p className="text-xs -mt-2 text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">Warning: Uploading a new CSV will <span className="font-bold">replace all existing indicators</span> for this project.</p>}
                 <div className="relative group">
                   <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" disabled={isSubmitting}/>
                   <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${file ? 'border-emerald-400 bg-emerald-50' : 'border-slate-300 bg-slate-50 group-hover:border-indigo-400'}`}>
@@ -110,7 +114,7 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ isOpen, onClose, onSa
                     <pre className="text-slate-600 bg-slate-200/50 p-2 rounded text-[10px] overflow-x-auto">Section,Standard,Indicator,Evidence Required,Responsible Person,Frequency,Assigned to,Compliance Evidence,Score</pre>
                   </div>
               </div>
-            )}
+
             {importStatus && (
                 <div className={`flex items-start gap-3 p-4 rounded-lg text-sm ${
                     importStatus.type === 'error' ? 'bg-red-50 border border-red-200 text-red-800' :
@@ -121,7 +125,6 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ isOpen, onClose, onSa
                     <div><p className="font-semibold">{importStatus.type.charAt(0).toUpperCase() + importStatus.type.slice(1)}</p><p>{importStatus.text}</p></div>
                 </div>
             )}
-          </div>
           <div className="flex gap-3 pt-4 border-t border-slate-100">
             <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50">Cancel</button>
             <button type="submit" disabled={isSubmitting || !name.trim()} className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed">

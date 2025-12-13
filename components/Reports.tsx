@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Indicator, ComplianceStatus } from '../types';
-import { generateComplianceReportSummary } from '../services/geminiService';
+import { api } from '../services/api';
 import { SECTION_COLORS } from '../constants';
 import { FileDown, Printer, RefreshCw, FileText } from 'lucide-react';
 import { 
@@ -22,8 +22,13 @@ const Reports: React.FC<ReportsProps> = ({ indicators }) => {
 
   const handleGenerateSummary = async () => {
     setLoading(true);
-    const result = await generateComplianceReportSummary(indicators);
-    setSummary(result || "Failed to generate summary.");
+    try {
+        const result = await api.generateComplianceReportSummary(indicators);
+        setSummary(result || "Failed to generate summary.");
+    } catch (error) {
+        console.error("Failed to generate report summary", error);
+        setSummary("Error: Could not generate AI summary. Please check the connection.");
+    }
     setLoading(false);
   };
 
@@ -81,7 +86,6 @@ const Reports: React.FC<ReportsProps> = ({ indicators }) => {
                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={statusData}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" tick={{fontSize: 12}} />
-                            {/* FIX: Corrected typo from allowDecals to allowDecimals */}
                             <YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
                         </BarChart>
                     </ResponsiveContainer>

@@ -1,9 +1,10 @@
+
 import React, { useState, useMemo } from 'react';
 import { Indicator, ComplianceStatus, Evidence, Frequency } from '../types';
 import { SECTION_COLORS } from '../constants';
 import { 
   ChevronDown, ChevronUp, FileText, Upload, Check, AlertTriangle, Clock,
-  Trash2, Filter, Link as LinkIcon, MessageSquare, X, ChevronsRight, CircleSlash, Plus, ClipboardEdit
+  Trash2, Filter, Link as LinkIcon, MessageSquare, X, ChevronsRight, CircleSlash, Plus, ClipboardEdit, Sparkles, RefreshCw, AlertCircle
 } from 'lucide-react';
 
 interface ChecklistProps {
@@ -11,9 +12,10 @@ interface ChecklistProps {
   onUpdateIndicator: (updated: Indicator) => void;
   onOpenManageModal: () => void;
   onOpenManageFormModal: (indicator: Indicator) => void;
+  onOpenAIComplianceGuideModal: (indicator: Indicator) => void;
 }
 
-const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, onOpenManageModal, onOpenManageFormModal }) => {
+const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, onOpenManageModal, onOpenManageFormModal, onOpenAIComplianceGuideModal }) => {
   const [selectedSection, setSelectedSection] = useState<string>('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedInds, setSelectedInds] = useState<string[]>([]);
@@ -79,8 +81,79 @@ const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, on
     setSelectedInds([]);
   };
 
-  const getStatusIcon = (status: ComplianceStatus) => {
-    switch (status) {
+  // Logic to determine if an indicator is stale/expired based on frequency
+  const getDerivedStatus = (ind: Indicator): { status: string, isExpired: boolean, isActionable: boolean } => {
+    if (ind.status === ComplianceStatus.NOT_APPLICABLE) return { status: ComplianceStatus.NOT_APPLICABLE, isExpired: false, isActionable: false };
+    
+    // Calculate if it's expired
+    if (ind.frequency && ind.frequency !== Frequency.ONE_TIME) {
+       const today = new Date();
+       const lastUpdated = ind.lastUpdated ? new Date(ind.lastUpdated) : null;
+       
+       if (!lastUpdated) {
+           // Never updated, so it is action required unless marked otherwise
+           return { status: ind.status === ComplianceStatus.COMPLIANT ? "Data Missing" : ind.status, isExpired: true, isActionable: true };
+       }
+
+       let expirationDate = new Date(lastUpdated);
+       switch (ind.frequency) {
+           case Frequency.DAILY: expirationDate.setDate(expirationDate.getDate() + 1); break;
+           case Frequency.WEEKLY: expirationDate.setDate(expirationDate.getDate() + 7); break;
+           case Frequency.MONTHLY: expirationDate.setMonth(expirationDate.getMonth() + 1); break;
+           case Frequency.QUARTERLY: expirationDate.setMonth(expirationDate.getMonth() + 3); break;
+           case Frequency.ANNUALLY: expirationDate.setFullYear(expirationDate.getFullYear() + 1); break;
+       }
+       
+       // Reset time for accurate date comparison
+       expirationDate.setHours(0,0,0,0);
+       today.setHours(0,0,0,0);
+
+       if (today >= expirationDate) {
+           return { status: "Action Required", isExpired: true, isActionable: true };
+       }
+    }
+    
+    return { status: ind.status, isExpired: false, isActionable: ind.status !== ComplianceStatus.COMPLIANT };
+  };
+
+  // Check if evidence was uploaded in the current period
+  const hasRecentEvidence = (ind: Indicator): boolean => {
+      if (!ind.evidence.length) return false;
+      
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      
+      // Get most recent evidence
+      const sortedEv = [...ind.evidence].sort((a,b) => new Date(b.dateUploaded).getTime() - new Date(a.dateUploaded).getTime());
+      const lastEvDate = new Date(sortedEv[0].dateUploaded);
+      lastEvDate.setHours(0,0,0,0);
+
+      // Simple check: Is the evidence from today (for daily) or reasonably recent?
+      // For strictness, let's say evidence must be "fresh" based on frequency
+      // But for this feature request: "Mark as 'Compliant' only after evidence has been logged"
+      // We will check if there is evidence *since the last expiry*. 
+      
+      // Simplified for UX: If frequency is daily, evidence must be today.
+      if (ind.frequency === Frequency.DAILY) {
+          return lastEvDate.getTime() === today.getTime();
+      }
+      
+      // For others, just ensure evidence exists.
+      return true;
+  };
+
+  const markAsCompliant = (ind: Indicator) => {
+      onUpdateIndicator({
+          ...ind,
+          status: ComplianceStatus.COMPLIANT,
+          lastUpdated: new Date().toISOString()
+      });
+  };
+
+  const getStatusIcon = (derived: { status: string, isExpired: boolean }) => {
+    if (derived.isExpired) return <AlertCircle size={18} className="text-amber-600" />;
+    
+    switch (derived.status) {
       case ComplianceStatus.COMPLIANT: return <Check size={18} className="text-emerald-500" />;
       case ComplianceStatus.NON_COMPLIANT: return <AlertTriangle size={18} className="text-red-500" />;
       case ComplianceStatus.IN_PROGRESS: return <Clock size={18} className="text-blue-500" />;
@@ -89,8 +162,10 @@ const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, on
     }
   };
 
-  const getStatusColor = (status: ComplianceStatus) => {
-    switch (status) {
+  const getStatusColor = (derived: { status: string, isExpired: boolean }) => {
+    if (derived.isExpired) return 'bg-amber-50 text-amber-700 border-amber-200';
+
+    switch (derived.status) {
       case ComplianceStatus.COMPLIANT: return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case ComplianceStatus.NON_COMPLIANT: return 'bg-red-50 text-red-700 border-red-200';
       case ComplianceStatus.IN_PROGRESS: return 'bg-blue-50 text-blue-700 border-blue-200';
@@ -104,6 +179,7 @@ const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, on
     if (applicable.length === 0) return { score: 0, percentage: 0 };
     
     const totalScore = applicable.reduce((sum, i) => sum + i.score, 0);
+    // Use raw status for calculation, not derived, because derived is about "Action Required" visual
     const achievedScore = applicable.filter(i => i.status === ComplianceStatus.COMPLIANT).reduce((sum, i) => sum + i.score, 0);
     
     return {
@@ -161,21 +237,41 @@ const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, on
                         </div>
                     </div>
                     <div>
-                    {standardIndicators.map(ind => (
+                    {standardIndicators.map(ind => {
+                      const derived = getDerivedStatus(ind);
+                      const canMarkCompliant = hasRecentEvidence(ind);
+
+                      return (
                       <div key={ind.id} className={`border-t border-slate-100 transition-all duration-200 relative ${expandedId === ind.id ? 'bg-slate-50/50' : 'hover:bg-slate-50/30'} ${selectedInds.includes(ind.id) ? 'bg-indigo-50' : ''}`}>
                         <div className="p-4 flex items-start justify-between">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-1" checked={selectedInds.includes(ind.id)} onChange={() => setSelectedInds(p => p.includes(ind.id) ? p.filter(id => id !== ind.id) : [...p, ind.id])} />
                             <div className="flex items-center gap-4 flex-1 cursor-pointer min-w-0" onClick={() => toggleExpand(ind.id)}>
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${getStatusColor(ind.status)} bg-opacity-50`}>{getStatusIcon(ind.status)}</div>
-                              <div className="min-w-0"><h4 className="font-semibold text-slate-800 text-sm md:text-base truncate">{ind.indicator}</h4></div>
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${getStatusColor(derived)} bg-opacity-50`}>{getStatusIcon(derived)}</div>
+                              <div className="min-w-0">
+                                  <h4 className="font-semibold text-slate-800 text-sm md:text-base truncate">{ind.indicator}</h4>
+                                  {derived.isExpired && <span className="text-xs text-amber-600 font-medium">Compliance Expired / Update Required</span>}
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4 pl-2" onClick={() => toggleExpand(ind.id)} >
-                             <div className={`hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border cursor-pointer ${getStatusColor(ind.status)}`}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>{ind.status}
+                          <div className="flex items-center gap-4 pl-2">
+                             {derived.isActionable && (
+                                 <button 
+                                    onClick={() => markAsCompliant(ind)}
+                                    disabled={!canMarkCompliant}
+                                    className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
+                                        ${canMarkCompliant 
+                                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' 
+                                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                                    title={canMarkCompliant ? "Mark as Compliant" : "Log evidence to enable"}
+                                 >
+                                    <Check size={12}/> {derived.status === ComplianceStatus.COMPLIANT ? 'Renew' : 'Mark Compliant'}
+                                 </button>
+                             )}
+                             <div className={`hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border cursor-pointer ${getStatusColor(derived)}`} onClick={() => toggleExpand(ind.id)}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>{derived.status}
                              </div>
-                            <button className="cursor-pointer">{expandedId === ind.id ? <ChevronUp size={20} className="text-indigo-400" /> : <ChevronDown size={20} className="text-slate-300" />}</button>
+                            <button onClick={() => toggleExpand(ind.id)} className="cursor-pointer">{expandedId === ind.id ? <ChevronUp size={20} className="text-indigo-400" /> : <ChevronDown size={20} className="text-slate-300" />}</button>
                           </div>
                         </div>
 
@@ -184,14 +280,18 @@ const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, on
                             <div className="pt-4 grid md:grid-cols-2 gap-8">
                               <div className="space-y-6">
                                 <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Evidence Required</label><p className="text-sm text-slate-700 leading-relaxed bg-white p-3 rounded-lg border">{ind.description}</p></div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Status</label><div className="relative"><select value={ind.status} onChange={(e) => handleFieldChange(ind, 'status', e.target.value)} className="w-full text-sm p-2.5 rounded-lg border bg-white focus:ring-2 focus:ring-indigo-500 appearance-none">{Object.values(ComplianceStatus).map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/></div></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Status (Manual)</label><div className="relative"><select value={ind.status} onChange={(e) => handleFieldChange(ind, 'status', e.target.value)} className="w-full text-sm p-2.5 rounded-lg border bg-white focus:ring-2 focus:ring-indigo-500 appearance-none">{Object.values(ComplianceStatus).map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/></div></div>
+                                    <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Frequency</label><div className="relative"><select value={ind.frequency || Frequency.ONE_TIME} onChange={(e) => handleFieldChange(ind, 'frequency', e.target.value)} className="w-full text-sm p-2.5 rounded-lg border bg-white focus:ring-2 focus:ring-indigo-500 appearance-none">{Object.values(Frequency).map(f => <option key={f} value={f}>{f}</option>)}</select><ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/></div></div>
                                     <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Assigned To</label><input type="text" placeholder="Unassigned" value={ind.assignee || ''} onChange={(e) => handleFieldChange(ind, 'assignee', e.target.value)} className="w-full text-sm p-2.5 rounded-lg border bg-white focus:ring-2 focus:ring-indigo-500"/></div>
                                     <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Score</label><input type="number" value={ind.score} onChange={(e) => handleFieldChange(ind, 'score', parseInt(e.target.value, 10))} className="w-full text-sm p-2.5 rounded-lg border bg-white focus:ring-2 focus:ring-indigo-500"/></div>
                                 </div>
-                                <div>
-                                    <button onClick={() => onOpenManageFormModal(ind)} className="w-full flex items-center justify-center gap-2 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-2.5 rounded-lg transition-colors border border-indigo-200">
-                                        <ClipboardEdit size={16} /> Manage Digital Form
+                                <div className="flex gap-2">
+                                    <button onClick={() => onOpenManageFormModal(ind)} className="flex-1 flex items-center justify-center gap-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-2.5 rounded-lg transition-colors border border-slate-200">
+                                        <ClipboardEdit size={16} /> Manage Form
+                                    </button>
+                                     <button onClick={() => onOpenAIComplianceGuideModal(ind)} className="flex-1 flex items-center justify-center gap-2 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-2.5 rounded-lg transition-colors border border-indigo-200">
+                                        <Sparkles size={16} /> AI Guide
                                     </button>
                                 </div>
                               </div>
@@ -208,7 +308,7 @@ const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, on
                           </div>
                         )}
                       </div>
-                    ))}
+                    )}})}
                     </div>
                 </div>
                 )

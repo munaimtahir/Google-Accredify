@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { X, Download, Upload, MessageSquare, FileText, Link as LinkIcon, Plus, CheckCircle, Trash2, Loader2 } from 'lucide-react';
 import { Indicator, Evidence } from '../types';
@@ -10,7 +9,7 @@ interface EvidenceModalProps {
   isOpen: boolean;
   onClose: () => void;
   indicator: Indicator;
-  onAddEvidence: (indicatorId: string, newEvidence: Omit<Evidence, 'id'>) => Promise<void>;
+  onAddEvidence: (indicatorId: string, newEvidence: Omit<Evidence, 'id'>, file?: File) => Promise<void>;
 }
 
 const EvidenceModal: React.FC<EvidenceModalProps> = ({ isOpen, onClose, indicator, onAddEvidence }) => {
@@ -70,11 +69,13 @@ const EvidenceModal: React.FC<EvidenceModalProps> = ({ isOpen, onClose, indicato
       const file = e.target.files[0];
       const newEvidence: Omit<Evidence, 'id'> = {
         fileName: file.name,
-        fileUrl: URL.createObjectURL(file), // Note: This is a temporary blob URL
+        fileUrl: '', // Backend generates URL
         dateUploaded: new Date().toISOString().split('T')[0],
         type: file.type.startsWith('image/') ? 'image' : 'document'
       };
-      onAddEvidence(indicator.id, newEvidence).then(() => {
+      
+      // Pass the actual file object
+      onAddEvidence(indicator.id, newEvidence, file).then(() => {
           e.target.value = ''; // Reset file input
       });
     }
@@ -101,11 +102,11 @@ const EvidenceModal: React.FC<EvidenceModalProps> = ({ isOpen, onClose, indicato
 
         const newEvidence: Omit<Evidence, 'id'> = {
             fileName: pdfFile.name,
-            fileUrl: URL.createObjectURL(pdfFile),
+            fileUrl: '',
             dateUploaded: new Date().toISOString().split('T')[0],
             type: 'document'
         };
-        await onAddEvidence(indicator.id, newEvidence);
+        await onAddEvidence(indicator.id, newEvidence, pdfFile);
         setFormData({});
 
     } else if (noteContent.trim()) {

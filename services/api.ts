@@ -1,116 +1,156 @@
 
-import { Project, Indicator, Evidence, ComplianceStatus } from '../types';
-import { INITIAL_PROJECTS } from '../constants';
+import { Project, Indicator, Evidence, ComplianceStatus, Frequency, DriveConfig } from '../types';
 
-// --- CONFIGURATION ---
-// Set this to FALSE when your Django backend is running
-const USE_MOCK_DATA = true;
-const API_BASE_URL = 'http://localhost:8000/api';
-
-// --- MOCK STORAGE ---
-// We use localStorage to simulate a database persistence in the browser for now
-const loadMockData = (): Project[] => {
-  const stored = localStorage.getItem('accredify_projects');
-  return stored ? JSON.parse(stored) : INITIAL_PROJECTS;
-};
-
-const saveMockData = (projects: Project[]) => {
-  localStorage.setItem('accredify_projects', JSON.stringify(projects));
-};
-
-// --- API SERVICE ---
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 export const api = {
-  // 1. GET ALL PROJECTS
   getProjects: async (): Promise<Project[]> => {
-    if (USE_MOCK_DATA) {
-      return new Promise((resolve) => {
-        setTimeout(() => resolve(loadMockData()), 500); // Simulate network delay
-      });
-    }
     const response = await fetch(`${API_BASE_URL}/projects/`);
     if (!response.ok) throw new Error('Failed to fetch projects');
     return response.json();
   },
 
-  // 2. CREATE PROJECT
   createProject: async (project: Project): Promise<Project> => {
-    if (USE_MOCK_DATA) {
-      const projects = loadMockData();
-      projects.push(project);
-      saveMockData(projects);
-      return project;
-    }
     const response = await fetch(`${API_BASE_URL}/projects/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(project),
     });
+    if (!response.ok) throw new Error('Failed to create project');
     return response.json();
   },
 
-  // 3. DELETE PROJECT
   deleteProject: async (id: string): Promise<void> => {
-    if (USE_MOCK_DATA) {
-      const projects = loadMockData().filter(p => p.id !== id);
-      saveMockData(projects);
-      return;
-    }
-    await fetch(`${API_BASE_URL}/projects/${id}/`, { method: 'DELETE' });
+    const response = await fetch(`${API_BASE_URL}/projects/${id}/`, { method: 'DELETE' });
+    if (!response.ok) throw new Error('Failed to delete project');
   },
 
-  // 4. UPDATE INDICATOR (General)
   updateIndicator: async (projectId: string, indicator: Indicator): Promise<Indicator> => {
-    if (USE_MOCK_DATA) {
-      const projects = loadMockData();
-      const projIndex = projects.findIndex(p => p.id === projectId);
-      if (projIndex > -1) {
-        const indIndex = projects[projIndex].indicators.findIndex(i => i.id === indicator.id);
-        if (indIndex > -1) {
-          projects[projIndex].indicators[indIndex] = indicator;
-          saveMockData(projects);
-        }
-      }
-      return indicator;
-    }
-    
-    // In Django, we would typically PATCH /api/indicators/{id}/
+    // We strictly update fields, not evidence list directly via this call to avoid overwriting files
+    // The backend serializer will handle nested read-only for evidence
     const response = await fetch(`${API_BASE_URL}/indicators/${indicator.id}/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(indicator),
     });
+    if (!response.ok) throw new Error('Failed to update indicator');
     return response.json();
   },
 
-  // 5. QUICK LOG (Specific Action)
-  quickLogIndicator: async (projectId: string, indicatorId: string): Promise<Indicator> => {
-    const today = new Date().toISOString().split('T')[0];
-
-    if (USE_MOCK_DATA) {
-      const projects = loadMockData();
-      const projIndex = projects.findIndex(p => p.id === projectId);
-      let updatedInd: Indicator | null = null;
-      
-      if (projIndex > -1) {
-        const indIndex = projects[projIndex].indicators.findIndex(i => i.id === indicatorId);
-        if (indIndex > -1) {
-          updatedInd = {
-            ...projects[projIndex].indicators[indIndex],
-            status: ComplianceStatus.COMPLIANT,
-            lastUpdated: today
-          };
-          projects[projIndex].indicators[indIndex] = updatedInd;
-          saveMockData(projects);
-        }
-      }
-      return updatedInd!;
+  addEvidence: async (indicatorId: string, evidenceData: Omit<Evidence, 'id'>, file?: File): Promise<Evidence> => {
+    const formData = new FormData();
+    formData.append('indicator', indicatorId);
+    formData.append('type', evidenceData.type);
+    formData.append('file_name', evidenceData.fileName || 'Evidence');
+    if (evidenceData.content) formData.append('content', evidenceData.content);
+    if (evidenceData.fileUrl && !file) formData.append('file_url', evidenceData.fileUrl);
+    
+    if (file) {
+        formData.append('file', file);
     }
 
-    // Call custom action in Django
-    const response = await fetch(`${API_BASE_URL}/indicators/${indicatorId}/quick_log/`, {
-        method: 'POST'
+    const response = await fetch(`${API_BASE_URL}/evidence/`, {
+        method: 'POST',
+        body: formData, // No Content-Type header; browser sets it with boundary
     });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Failed to upload evidence: ${err}`);
+    }
+    return response.json();
+  },
+
+  quickLogIndicator: async (projectId: string, indicatorId: string): Promise<Indicator> => {
+    const response = await fetch(`${API_BASE_URL}/indicators/${indicatorId}/quick_log/`, { method: 'POST' });
+    if (!response.ok) throw new Error('Failed to quick log');
+    return response.json();
+  },
+
+  connectGoogleDrive: async (projectId: string): Promise<DriveConfig> => {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/connect-drive/`, { method: 'POST' });
+    if (!response.ok) throw new Error('Failed to connect Drive');
+    return response.json();
+  },
+
+  syncProjectToDrive: async (projectId: string): Promise<Project> => {
+     const response = await fetch(`${API_BASE_URL}/projects/${projectId}/sync-drive/`, { method: 'POST' });
+     if (!response.ok) throw new Error('Failed to sync Drive');
+     return response.json();
+  },
+
+  // AI Services
+  analyzeChecklist: async (indicators: Omit<Indicator, 'id' | 'evidence' | 'lastUpdated'>[]): Promise<Indicator[]> => {
+    const response = await fetch(`${API_BASE_URL}/analyze-checklist/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ indicators }),
+    });
+    if (!response.ok) throw new Error('Failed to analyze checklist');
+    return response.json();
+  },
+
+  analyzeComplianceCategorization: async (indicators: Indicator[]): Promise<any> => {
+      const response = await fetch(`${API_BASE_URL}/analyze-categorization/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indicators }),
+      });
+      if (!response.ok) throw new Error('Failed to analyze categorization');
+      return response.json();
+  },
+
+  askComplianceAssistant: async (query: string, indicators: Indicator[]): Promise<string> => {
+    const response = await fetch(`${API_BASE_URL}/ask-assistant/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, indicators }),
+    });
+    if (!response.ok) throw new Error('Failed to query AI assistant');
+    const data = await response.json();
+    return data.response;
+  },
+
+  generateComplianceReportSummary: async (indicators: Indicator[]): Promise<string> => {
+    const response = await fetch(`${API_BASE_URL}/report-summary/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ indicators }),
+    });
+    if (!response.ok) throw new Error('Failed to generate summary');
+    const data = await response.json();
+    return data.summary;
+  },
+
+  generateCsvFromDocument: async (document_text: string): Promise<string> => {
+    const response = await fetch(`${API_BASE_URL}/convert-document/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_text }),
+    });
+    if (!response.ok) throw new Error('Failed to convert document');
+    const data = await response.json();
+    return data.csv_content;
+  },
+
+  generateComplianceGuide: async (indicator: Indicator): Promise<string> => {
+    const response = await fetch(`${API_BASE_URL}/compliance-guide/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indicator }),
+    });
+    if (!response.ok) throw new Error('Failed to generate guide');
+    const data = await response.json();
+    return data.guide;
+  },
+
+  analyzeChecklistForActionableTasks: async (indicators: Indicator[]): Promise<any[]> => {
+    const response = await fetch(`${API_BASE_URL}/analyze-tasks/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indicators }),
+    });
+    if (!response.ok) throw new Error('Failed to analyze tasks');
     return response.json();
   }
 };
