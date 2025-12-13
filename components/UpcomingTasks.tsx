@@ -15,89 +15,33 @@ interface UpcomingTasksProps {
   onOpenAIComplianceGuideModal: (indicator: Indicator) => void;
 }
 
-const UpcomingTasks: React.FC<UpcomingTasksProps> = ({ 
-  indicators, 
-  onQuickLog, 
-  onManageEvidence, 
-  onUpdateIndicator, 
-  onOpenManageFormModal, 
-  onOpenAIComplianceGuideModal 
-}) => {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  
-  const processTasks = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+const EvidenceIcon = ({ type }: { type: Evidence['type'] }) => {
+    switch (type) {
+        case 'note': return <MessageSquare size={16} />; case 'link': return <LinkIcon size={16} />;
+        default: return <FileText size={16} />;
+    }
+};
 
-    const tasks = {
-      overdue: [] as any[],
-      daily: [] as any[],
-      weekly: [] as any[],
-      monthly: [] as any[]
-    };
+const SectionHeader = ({ title, count, colorClass, icon: Icon }: any) => (
+    <div className="flex items-center gap-3 mb-4 mt-8">
+      <div className={`p-2 rounded-lg ${colorClass}`}><Icon size={20} /></div>
+      <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+      <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">{count}</span>
+    </div>
+);
 
-    indicators.filter(ind => ind.frequency && ind.frequency !== Frequency.ONE_TIME).forEach(ind => {
-      let nextDueDate = new Date();
-      let isOverdue = false;
-      let lastUpdatedDate = ind.lastUpdated ? new Date(ind.lastUpdated) : null;
-
-      if (lastUpdatedDate) {
-        lastUpdatedDate.setHours(0, 0, 0, 0);
-        const next = new Date(lastUpdatedDate);
-        
-        switch (ind.frequency) {
-          case Frequency.DAILY: next.setDate(lastUpdatedDate.getDate() + 1); break;
-          case Frequency.WEEKLY: next.setDate(lastUpdatedDate.getDate() + 7); break;
-          case Frequency.MONTHLY: next.setMonth(lastUpdatedDate.getMonth() + 1); break;
-          case Frequency.QUARTERLY: next.setMonth(lastUpdatedDate.getMonth() + 3); break;
-          case Frequency.ANNUALLY: next.setFullYear(lastUpdatedDate.getFullYear() + 1); break;
-        }
-        nextDueDate = next;
-      } else {
-        nextDueDate = new Date(); 
-        nextDueDate.setDate(nextDueDate.getDate() - 1); 
-      }
-
-      if (nextDueDate < today) isOverdue = true;
-      const isDoneToday = lastUpdatedDate && lastUpdatedDate.getTime() === today.getTime();
-      const isResetDue = ind.status === ComplianceStatus.NOT_STARTED && !isOverdue && !isDoneToday;
-      const hasEvidenceToday = ind.evidence.some(ev => ev.dateUploaded === todayStr);
-
-      const taskItem = { ...ind, nextDueDate, daysOverdue: isOverdue ? Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 3600 * 24)) : 0, isDoneToday, isResetDue, hasEvidenceToday };
-
-      if (isOverdue && !isDoneToday) tasks.overdue.push(taskItem);
-      else {
-        if (ind.frequency === Frequency.DAILY) tasks.daily.push(taskItem);
-        else if (ind.frequency === Frequency.WEEKLY) tasks.weekly.push(taskItem);
-        else tasks.monthly.push(taskItem);
-      }
-    });
-
-    tasks.overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
-    return tasks;
-  }, [indicators]);
-
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
-  };
-
-  const handleFieldChange = (ind: Indicator, field: keyof Indicator, value: any) => {
-    onUpdateIndicator({ ...ind, [field]: value });
-  };
-
-  const removeEvidence = (ind: Indicator, evidenceId: string) => {
-    onUpdateIndicator({ ...ind, evidence: ind.evidence.filter(e => e.id !== evidenceId) });
-  };
-
-  const EvidenceIcon = ({ type }: { type: Evidence['type'] }) => {
-      switch (type) {
-          case 'note': return <MessageSquare size={16} />; case 'link': return <LinkIcon size={16} />;
-          default: return <FileText size={16} />;
-      }
-  };
-
-  const TaskCard: React.FC<{ item: any, isOverdue?: boolean }> = ({ item, isOverdue = false }) => {
+const TaskCard: React.FC<{ 
+    item: any, 
+    isOverdue?: boolean, 
+    expandedId: string | null, 
+    toggleExpand: (id: string) => void, 
+    onQuickLog: any, 
+    onManageEvidence: any,
+    handleFieldChange: any,
+    removeEvidence: any,
+    onOpenManageFormModal: any,
+    onOpenAIComplianceGuideModal: any
+}> = ({ item, isOverdue = false, expandedId, toggleExpand, onQuickLog, onManageEvidence, handleFieldChange, removeEvidence, onOpenManageFormModal, onOpenAIComplianceGuideModal }) => {
     let bgClass = "bg-white border-slate-200";
     let iconColor = "bg-slate-100 text-slate-500";
     let Icon = CalendarClock;
@@ -244,15 +188,86 @@ const UpcomingTasks: React.FC<UpcomingTasksProps> = ({
             )}
         </div>
     );
+};
+
+const UpcomingTasks: React.FC<UpcomingTasksProps> = ({ 
+  indicators, 
+  onQuickLog, 
+  onManageEvidence, 
+  onUpdateIndicator, 
+  onOpenManageFormModal, 
+  onOpenAIComplianceGuideModal 
+}) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  
+  const processTasks = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+
+    const tasks = {
+      overdue: [] as any[],
+      daily: [] as any[],
+      weekly: [] as any[],
+      monthly: [] as any[]
+    };
+
+    indicators.filter(ind => ind.frequency && ind.frequency !== Frequency.ONE_TIME).forEach(ind => {
+      let nextDueDate = new Date();
+      let isOverdue = false;
+      let lastUpdatedDate = ind.lastUpdated ? new Date(ind.lastUpdated) : null;
+
+      if (lastUpdatedDate) {
+        lastUpdatedDate.setHours(0, 0, 0, 0);
+        const next = new Date(lastUpdatedDate);
+        
+        switch (ind.frequency) {
+          case Frequency.DAILY: next.setDate(lastUpdatedDate.getDate() + 1); break;
+          case Frequency.WEEKLY: next.setDate(lastUpdatedDate.getDate() + 7); break;
+          case Frequency.MONTHLY: next.setMonth(lastUpdatedDate.getMonth() + 1); break;
+          case Frequency.QUARTERLY: next.setMonth(lastUpdatedDate.getMonth() + 3); break;
+          case Frequency.ANNUALLY: next.setFullYear(lastUpdatedDate.getFullYear() + 1); break;
+        }
+        nextDueDate = next;
+      } else {
+        nextDueDate = new Date(); 
+        nextDueDate.setDate(nextDueDate.getDate() - 1); 
+      }
+
+      if (nextDueDate < today) isOverdue = true;
+      const isDoneToday = lastUpdatedDate && lastUpdatedDate.getTime() === today.getTime();
+      const isResetDue = ind.status === ComplianceStatus.NOT_STARTED && !isOverdue && !isDoneToday;
+      const hasEvidenceToday = ind.evidence.some(ev => ev.dateUploaded === todayStr);
+
+      const taskItem = { ...ind, nextDueDate, daysOverdue: isOverdue ? Math.ceil((today.getTime() - nextDueDate.getTime()) / (1000 * 3600 * 24)) : 0, isDoneToday, isResetDue, hasEvidenceToday };
+
+      if (isOverdue && !isDoneToday) tasks.overdue.push(taskItem);
+      else {
+        if (ind.frequency === Frequency.DAILY) tasks.daily.push(taskItem);
+        else if (ind.frequency === Frequency.WEEKLY) tasks.weekly.push(taskItem);
+        else tasks.monthly.push(taskItem);
+      }
+    });
+
+    tasks.overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+    return tasks;
+  }, [indicators]);
+
+  const toggleExpand = (id: string) => {
+    setExpandedId(expandedId === id ? null : id);
   };
 
-  const SectionHeader = ({ title, count, colorClass, icon: Icon }: any) => (
-    <div className="flex items-center gap-3 mb-4 mt-8">
-      <div className={`p-2 rounded-lg ${colorClass}`}><Icon size={20} /></div>
-      <h3 className="text-lg font-bold text-slate-800">{title}</h3>
-      <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">{count}</span>
-    </div>
-  );
+  const handleFieldChange = (ind: Indicator, field: keyof Indicator, value: any) => {
+    onUpdateIndicator({ ...ind, [field]: value });
+  };
+
+  const removeEvidence = (ind: Indicator, evidenceId: string) => {
+    onUpdateIndicator({ ...ind, evidence: ind.evidence.filter(e => e.id !== evidenceId) });
+  };
+
+  const cardProps = {
+      expandedId, toggleExpand, onQuickLog, onManageEvidence, handleFieldChange, removeEvidence, onOpenManageFormModal, onOpenAIComplianceGuideModal
+  };
 
   return (
     <div className="max-w-5xl mx-auto pb-20">
@@ -265,7 +280,7 @@ const UpcomingTasks: React.FC<UpcomingTasksProps> = ({
         <div className="mb-8 animate-fade-in">
            <SectionHeader title="Action Required (Overdue)" count={processTasks.overdue.length} colorClass="bg-red-100 text-red-600" icon={AlertTriangle} />
            <div className="space-y-3">
-             {processTasks.overdue.map(item => <TaskCard key={item.id} item={item} isOverdue={true} />)}
+             {processTasks.overdue.map(item => <TaskCard key={item.id} item={item} isOverdue={true} {...cardProps} />)}
            </div>
         </div>
       )}
@@ -273,17 +288,17 @@ const UpcomingTasks: React.FC<UpcomingTasksProps> = ({
       <div className="grid lg:grid-cols-2 gap-8">
         <div>
            <SectionHeader title="Daily Tasks" count={processTasks.daily.length} colorClass="bg-blue-100 text-blue-600" icon={Clock} />
-           {processTasks.daily.length === 0 ? <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400">No daily tasks configured.</div> : <div className="space-y-3">{processTasks.daily.map(item => <TaskCard key={item.id} item={item} />)}</div>}
+           {processTasks.daily.length === 0 ? <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400">No daily tasks configured.</div> : <div className="space-y-3">{processTasks.daily.map(item => <TaskCard key={item.id} item={item} {...cardProps} />)}</div>}
         </div>
         <div>
            <SectionHeader title="Weekly Tasks" count={processTasks.weekly.length} colorClass="bg-violet-100 text-violet-600" icon={Calendar} />
-           {processTasks.weekly.length === 0 ? <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400">No weekly tasks configured.</div> : <div className="space-y-3">{processTasks.weekly.map(item => <TaskCard key={item.id} item={item} />)}</div>}
+           {processTasks.weekly.length === 0 ? <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400">No weekly tasks configured.</div> : <div className="space-y-3">{processTasks.weekly.map(item => <TaskCard key={item.id} item={item} {...cardProps} />)}</div>}
         </div>
       </div>
 
       <div className="mt-8">
           <SectionHeader title="Monthly & Periodic" count={processTasks.monthly.length} colorClass="bg-emerald-100 text-emerald-600" icon={Calendar} />
-           {processTasks.monthly.length === 0 ? <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400">No periodic tasks configured.</div> : <div className="space-y-3">{processTasks.monthly.map(item => <TaskCard key={item.id} item={item} />)}</div>}
+           {processTasks.monthly.length === 0 ? <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl text-center text-slate-400">No periodic tasks configured.</div> : <div className="space-y-3">{processTasks.monthly.map(item => <TaskCard key={item.id} item={item} {...cardProps} />)}</div>}
       </div>
     </div>
   );

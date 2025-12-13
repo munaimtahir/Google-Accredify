@@ -14,6 +14,39 @@ interface DocumentLibraryProps {
   onSyncDrive: () => void;
 }
 
+const DriveStatus: React.FC<{ project: Project, onConnectDrive: () => void, handleSync: () => void, isSyncing: boolean }> = ({ project, onConnectDrive, handleSync, isSyncing }) => {
+    if (!project.driveConfig?.isConnected) {
+        return (
+            <div className="bg-slate-800 text-white p-4 rounded-xl flex items-center justify-between shadow-lg">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-700 rounded-lg"><CloudOff size={20} className="text-slate-400"/></div>
+                    <div>
+                        <h4 className="font-bold text-sm">Google Drive Not Connected</h4>
+                        <p className="text-xs text-slate-400">Link an account to enable secure cloud backups.</p>
+                    </div>
+                </div>
+                <button onClick={onConnectDrive} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xs font-bold transition-colors">
+                    Connect Drive
+                </button>
+            </div>
+        );
+    }
+    return (
+        <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-50 rounded-lg"><Cloud size={20} className="text-emerald-600"/></div>
+                <div>
+                    <h4 className="font-bold text-sm text-slate-800">Backup Active: {project.driveConfig.accountName}</h4>
+                    <p className="text-xs text-slate-500">Last Synced: {project.driveConfig.lastSync ? new Date(project.driveConfig.lastSync).toLocaleString() : 'Never'}</p>
+                </div>
+            </div>
+            <button onClick={handleSync} disabled={isSyncing} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} />
+            </button>
+        </div>
+    );
+};
+
 const DocumentLibrary: React.FC<DocumentLibraryProps> = ({ project, onConnectDrive, onSyncDrive }) => {
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [selectedIndicatorId, setSelectedIndicatorId] = useState<string | null>(null);
@@ -69,39 +102,6 @@ const DocumentLibrary: React.FC<DocumentLibraryProps> = ({ project, onConnectDri
     return <File size={20} className="text-slate-400" />;
   };
 
-  const DriveStatus = () => {
-    if (!project.driveConfig?.isConnected) {
-        return (
-            <div className="bg-slate-800 text-white p-4 rounded-xl flex items-center justify-between shadow-lg">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-700 rounded-lg"><CloudOff size={20} className="text-slate-400"/></div>
-                    <div>
-                        <h4 className="font-bold text-sm">Google Drive Not Connected</h4>
-                        <p className="text-xs text-slate-400">Link an account to enable secure cloud backups.</p>
-                    </div>
-                </div>
-                <button onClick={onConnectDrive} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xs font-bold transition-colors">
-                    Connect Drive
-                </button>
-            </div>
-        );
-    }
-    return (
-        <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-50 rounded-lg"><Cloud size={20} className="text-emerald-600"/></div>
-                <div>
-                    <h4 className="font-bold text-sm text-slate-800">Backup Active: {project.driveConfig.accountName}</h4>
-                    <p className="text-xs text-slate-500">Last Synced: {project.driveConfig.lastSync ? new Date(project.driveConfig.lastSync).toLocaleString() : 'Never'}</p>
-                </div>
-            </div>
-            <button onClick={handleSync} disabled={isSyncing} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} />
-            </button>
-        </div>
-    );
-  };
-
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col animate-fade-in">
         <div className="flex justify-between items-center mb-6">
@@ -154,7 +154,7 @@ const DocumentLibrary: React.FC<DocumentLibraryProps> = ({ project, onConnectDri
                     ))}
                 </div>
                 <div className="p-4 bg-slate-50 border-t border-slate-100">
-                    <DriveStatus />
+                    <DriveStatus project={project} onConnectDrive={onConnectDrive} handleSync={handleSync} isSyncing={isSyncing} />
                 </div>
             </div>
 

@@ -44,6 +44,7 @@ const App: React.FC = () => {
   const [guideIndicator, setGuideIndicator] = useState<Indicator | null>(null);
 
   const [isAIComplianceRunnerModalOpen, setIsAIComplianceRunnerModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Moved to top
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const evidenceIndicator = activeProject?.indicators.find(i => i.id === evidenceIndicatorId);
@@ -189,7 +190,6 @@ const App: React.FC = () => {
     
     if (projectData.id) { // Edit existing project
         const updatedProject = { ...projects.find(p => p.id === projectData.id)!, name: projectData.name, description: projectData.description };
-        // Note: Simple update doesn't handle replacing indicators with CSV for simplicity in this demo
         setProjects(prev => prev.map(p => p.id === projectData.id ? updatedProject : p));
     } else { // Create new project
         const newProject: Project = {
@@ -220,12 +220,6 @@ const App: React.FC = () => {
     if (!activeProjectId || !activeProject) return;
     const newIndicator: Indicator = { ...newIndData, id: `IND-${Date.now()}`, evidence: [] };
     const updatedProject = { ...activeProject, indicators: [...activeProject.indicators, newIndicator] };
-    
-    // In a real app we would POST to /indicators/ endpoint. For this architecture, we update via parent or dedicated endpoint
-    // For simplicity, we assume indicator creation is handled or we use updateIndicator logic on project if we had it,
-    // but here we just update local state and assume a refresh or specialized backend logic handles it.
-    // Ideally: await api.createIndicator(activeProjectId, newIndicator)
-    
     setProjects(prev => prev.map(p => p.id === activeProjectId ? updatedProject : p));
     setIsManageIndicatorsModalOpen(false);
   };
@@ -240,8 +234,6 @@ const App: React.FC = () => {
   const handleCloseManageFormModal = () => { setIsManageFormModalOpen(false); setFormIndicator(null); };
   const handleOpenAIComplianceGuideModal = (indicator: Indicator) => { setGuideIndicator(indicator); setIsAIComplianceGuideModalOpen(true); };
   const handleCloseAIComplianceGuideModal = () => { setIsAIComplianceGuideModalOpen(false); setGuideIndicator(null); };
-
-  const [isSubmitting, setIsSubmitting] = useState(false); // Add this state
 
   const renderView = () => {
     if (isLoading) return <div className="h-full flex items-center justify-center text-slate-400"><Loader2 className="animate-spin mb-2" /> Loading Projects...</div>;

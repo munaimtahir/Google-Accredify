@@ -15,6 +15,13 @@ interface ChecklistProps {
   onOpenAIComplianceGuideModal: (indicator: Indicator) => void;
 }
 
+const EvidenceIcon = ({ type }: { type: Evidence['type'] }) => {
+    switch (type) {
+        case 'note': return <MessageSquare size={16} />; case 'link': return <LinkIcon size={16} />;
+        default: return <FileText size={16} />;
+    }
+};
+
 const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, onOpenManageModal, onOpenManageFormModal, onOpenAIComplianceGuideModal }) => {
   const [selectedSection, setSelectedSection] = useState<string>('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -129,16 +136,9 @@ const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, on
       lastEvDate.setHours(0,0,0,0);
 
       // Simple check: Is the evidence from today (for daily) or reasonably recent?
-      // For strictness, let's say evidence must be "fresh" based on frequency
-      // But for this feature request: "Mark as 'Compliant' only after evidence has been logged"
-      // We will check if there is evidence *since the last expiry*. 
-      
-      // Simplified for UX: If frequency is daily, evidence must be today.
       if (ind.frequency === Frequency.DAILY) {
           return lastEvDate.getTime() === today.getTime();
       }
-      
-      // For others, just ensure evidence exists.
       return true;
   };
 
@@ -186,13 +186,6 @@ const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, on
         score: achievedScore,
         percentage: totalScore > 0 ? Math.round((achievedScore / totalScore) * 100) : 0,
     };
-  };
-
-  const EvidenceIcon = ({ type }: { type: Evidence['type'] }) => {
-      switch (type) {
-          case 'note': return <MessageSquare size={16} />; case 'link': return <LinkIcon size={16} />;
-          default: return <FileText size={16} />;
-      }
   };
 
   return (

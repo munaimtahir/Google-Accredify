@@ -12,6 +12,13 @@ interface EvidenceModalProps {
   onAddEvidence: (indicatorId: string, newEvidence: Omit<Evidence, 'id'>, file?: File) => Promise<void>;
 }
 
+const EvidenceIcon = ({ type }: { type: Evidence['type'] }) => {
+    switch (type) {
+        case 'note': return <MessageSquare size={16} />; case 'link': return <LinkIcon size={16} />;
+        default: return <FileText size={16} />;
+    }
+};
+
 const EvidenceModal: React.FC<EvidenceModalProps> = ({ isOpen, onClose, indicator, onAddEvidence }) => {
   const [activeTab, setActiveTab] = useState<'upload' | 'digital'>('upload');
   const [noteContent, setNoteContent] = useState('');
@@ -124,13 +131,6 @@ const EvidenceModal: React.FC<EvidenceModalProps> = ({ isOpen, onClose, indicato
   
   const handleFormInputChange = (name: string, value: any) => {
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const EvidenceIcon = ({ type }: { type: Evidence['type'] }) => {
-      switch (type) {
-          case 'note': return <MessageSquare size={16} />; case 'link': return <LinkIcon size={16} />;
-          default: return <FileText size={16} />;
-      }
   };
 
   return (
