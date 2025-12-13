@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-accredify_db}
       POSTGRES_USER: ${DB_USER:-accredify_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Database password must be set in .env file}
     ports:
       - "5432:5432"
     volumes:
@@ -32,7 +32,7 @@ services:
              python manage.py collectstatic --noinput &&
              gunicorn accredify_backend.wsgi:application --bind 0.0.0.0:8000 --workers 4"
     environment:
-      - DATABASE_URL=postgresql://${DB_USER:-accredify_user}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-accredify_db}
+      - DATABASE_URL=postgresql://${DB_USER:-accredify_user}:${DB_PASSWORD:?Database password required}@db:5432/${DB_NAME:-accredify_db}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - DEBUG=${DEBUG:-False}

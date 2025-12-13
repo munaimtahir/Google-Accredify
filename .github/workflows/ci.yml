@@ -83,7 +83,6 @@ jobs:
         DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
         DJANGO_SECRET_KEY: test-secret-key-for-ci
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      continue-on-error: true
 
   # Security Scan
   security:

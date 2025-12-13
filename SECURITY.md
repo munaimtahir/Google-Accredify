@@ -13,7 +13,9 @@ We release patches for security vulnerabilities for the following versions:
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email to: [SECURITY EMAIL - Add your email]
+Instead, please report them via email to: security@accredify.example.com
+
+**Note:** Before deploying to production, replace this email with your actual security contact email.
 
 You should receive a response within 48 hours. If for some reason you do not, please follow up via email to ensure we received your original message.
 
@@ -428,9 +430,11 @@ logger.error(f"Failed to process request", exc_info=True)
 
 ## Contact
 
-For security concerns, contact: [SECURITY EMAIL - Add your email]
+For security concerns, contact: security@accredify.example.com
+
+**Note:** Update this email address with your actual security contact before production deployment.
 
 ---
 
-**Last Updated:** January 2024
+**Last Updated:** January 2024  
 **Version:** 1.0.0
