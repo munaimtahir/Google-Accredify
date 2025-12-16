@@ -85,7 +85,8 @@ class IndicatorViewSet(viewsets.ModelViewSet):
     
     def update(self, request, *args, **kwargs):
         """Update indicator (PATCH or PUT)."""
-        partial = kwargs.pop('partial', True)  # Always allow partial updates
+        # PATCH allows partial updates, PUT requires full object
+        partial = request.method == 'PATCH'
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)

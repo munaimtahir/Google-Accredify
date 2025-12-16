@@ -36,7 +36,13 @@ class EvidenceSerializer(serializers.ModelSerializer):
                 validated_data['file'] = file
                 if not validated_data.get('file_name'):
                     validated_data['file_name'] = file.name
-                validated_data['file_size'] = f"{file.size / 1024:.2f} KB"
+                # Format file size appropriately
+                if file.size:
+                    size_kb = file.size / 1024
+                    if size_kb < 1024:
+                        validated_data['file_size'] = f"{size_kb:.2f} KB"
+                    else:
+                        validated_data['file_size'] = f"{size_kb / 1024:.2f} MB"
         
         return super().create(validated_data)
 

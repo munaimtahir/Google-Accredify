@@ -5,22 +5,37 @@ Google Gemini AI services for AccrediFy platform.
 import os
 import logging
 from typing import List, Dict, Any
-import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
-# Configure Google Gemini
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-pro')
-else:
-    logger.warning("GEMINI_API_KEY not configured. AI features will be disabled.")
-    model = None
+# Constants
+MAX_DOCUMENT_LENGTH = 3000  # Maximum document text length to send to AI
+MAX_INDICATORS_FOR_PROMPT = 10  # Maximum number of indicators to include in prompts
+
+# Google Gemini configuration
+def _get_gemini_model():
+    """
+    Get configured Gemini model instance.
+    Returns None if API key is not configured.
+    """
+    import google.generativeai as genai
+    
+    api_key = os.getenv('GEMINI_API_KEY')
+    if not api_key:
+        logger.warning("GEMINI_API_KEY not configured. AI features will be disabled.")
+        return None
+    
+    try:
+        genai.configure(api_key=api_key)
+        return genai.GenerativeModel('gemini-pro')
+    except Exception as e:
+        logger.error(f"Failed to configure Gemini model: {str(e)}")
+        return None
 
 
 def analyze_checklist(indicators_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Analyze compliance checklist and provide suggestions."""
+    model = _get_gemini_model()
     if not model:
         return indicators_data
     
@@ -58,6 +73,7 @@ def analyze_checklist(indicators_data: List[Dict[str, Any]]) -> List[Dict[str, A
 
 def analyze_categorization(indicators_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Analyze and categorize compliance indicators."""
+    model = _get_gemini_model()
     if not model:
         return {'categories': [], 'insights': 'AI service not configured'}
     
@@ -69,7 +85,7 @@ def analyze_categorization(indicators_data: List[Dict[str, Any]]) -> Dict[str, A
         3. Department/Area affected
         
         Indicators:
-        {_format_indicators_for_prompt(indicators_data[:10])}
+        {_format_indicators_for_prompt(indicators_data[:MAX_INDICATORS_FOR_PROMPT])}
         
         Provide a summary of the categorization with key insights.
         """
@@ -87,11 +103,12 @@ def analyze_categorization(indicators_data: List[Dict[str, Any]]) -> Dict[str, A
 
 def ask_assistant(query: str, indicators_data: List[Dict[str, Any]]) -> str:
     """Answer compliance-related questions using AI."""
+    model = _get_gemini_model()
     if not model:
         return "AI assistant is not configured. Please set GEMINI_API_KEY."
     
     try:
-        context = _format_indicators_for_prompt(indicators_data[:10])
+        context = _format_indicators_for_prompt(indicators_data[:MAX_INDICATORS_FOR_PROMPT])
         prompt = f"""
         You are a compliance management expert. Answer the following question based on the compliance checklist provided.
         
@@ -112,6 +129,7 @@ def ask_assistant(query: str, indicators_data: List[Dict[str, Any]]) -> str:
 
 def generate_report_summary(indicators_data: List[Dict[str, Any]]) -> str:
     """Generate a compliance report summary."""
+    model = _get_gemini_model()
     if not model:
         return "AI service not configured for report generation."
     
@@ -152,15 +170,19 @@ def generate_report_summary(indicators_data: List[Dict[str, Any]]) -> str:
 
 def convert_document_to_csv(document_text: str) -> str:
     """Convert document text to CSV format for compliance checklist."""
+    model = _get_gemini_model()
     if not model:
         return "Section,Standard,Indicator,Evidence Required,Responsible Person,Frequency,Assigned to,Compliance Evidence,Score\nError,N/A,AI service not configured,N/A,N/A,N/A,N/A,N/A,0"
     
     try:
+        # Truncate document text to avoid token limits
+        truncated_text = document_text[:MAX_DOCUMENT_LENGTH]
+        
         prompt = f"""
         Convert the following document text into a CSV format for a compliance checklist.
         
         Document:
-        {document_text[:3000]}  # Limit text to avoid token limits
+        {truncated_text}
         
         Extract compliance requirements and format as CSV with these columns:
         Section,Standard,Indicator,Evidence Required,Responsible Person,Frequency,Assigned to,Compliance Evidence,Score
@@ -187,6 +209,7 @@ def convert_document_to_csv(document_text: str) -> str:
 
 def generate_compliance_guide(indicator_data: Dict[str, Any]) -> str:
     """Generate a step-by-step compliance guide for an indicator."""
+    model = _get_gemini_model()
     if not model:
         return "AI service not configured. Please set GEMINI_API_KEY."
     
@@ -219,6 +242,7 @@ def generate_compliance_guide(indicator_data: Dict[str, Any]) -> str:
 
 def analyze_actionable_tasks(indicators_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Identify actionable tasks from compliance indicators."""
+    model = _get_gemini_model()
     if not model:
         return []
     
@@ -227,7 +251,7 @@ def analyze_actionable_tasks(indicators_data: List[Dict[str, Any]]) -> List[Dict
         Analyze the following compliance indicators and identify actionable tasks.
         
         Indicators:
-        {_format_indicators_for_prompt(indicators_data[:10])}
+        {_format_indicators_for_prompt(indicators_data[:MAX_INDICATORS_FOR_PROMPT])}
         
         For each indicator, identify:
         1. Immediate actions needed
