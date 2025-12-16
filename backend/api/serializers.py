@@ -11,11 +11,11 @@ class EvidenceSerializer(serializers.ModelSerializer):
     
     # Custom fields to match frontend expectations
     dateUploaded = serializers.DateTimeField(source='date_uploaded', read_only=True)
-    fileName = serializers.CharField(source='file_name', required=False, allow_blank=True)
-    fileUrl = serializers.URLField(source='file_url', required=False, allow_blank=True)
-    fileSize = serializers.CharField(source='file_size', required=False, allow_blank=True)
-    driveFileId = serializers.CharField(source='drive_file_id', required=False, allow_blank=True)
-    driveViewLink = serializers.URLField(source='drive_view_link', required=False, allow_blank=True)
+    fileName = serializers.CharField(source='file_name', required=False, allow_blank=True, allow_null=True)
+    fileUrl = serializers.URLField(source='file_url', required=False, allow_blank=True, allow_null=True)
+    fileSize = serializers.CharField(source='file_size', required=False, allow_blank=True, allow_null=True)
+    driveFileId = serializers.CharField(source='drive_file_id', required=False, allow_blank=True, allow_null=True)
+    driveViewLink = serializers.URLField(source='drive_view_link', required=False, allow_blank=True, allow_null=True)
     syncStatus = serializers.CharField(source='sync_status', read_only=True)
     
     class Meta:
@@ -28,12 +28,15 @@ class EvidenceSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Create evidence with file handling."""
-        # Handle file upload
-        file = self.context.get('request').FILES.get('file')
-        if file:
-            validated_data['file'] = file
-            validated_data['file_name'] = validated_data.get('file_name') or file.name
-            validated_data['file_size'] = f"{file.size / 1024:.2f} KB"
+        # Handle file upload from request
+        request = self.context.get('request')
+        if request:
+            file = request.FILES.get('file')
+            if file:
+                validated_data['file'] = file
+                if not validated_data.get('file_name'):
+                    validated_data['file_name'] = file.name
+                validated_data['file_size'] = f"{file.size / 1024:.2f} KB"
         
         return super().create(validated_data)
 
