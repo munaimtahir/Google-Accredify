@@ -50,9 +50,12 @@ MANIFEST
 *.sqlite3
 db.sqlite3
 /media
+backend/media/
 /staticfiles
 .env
 .venv
 venv/
 ENV/
 env/
+.coverage
+htmlcov/
