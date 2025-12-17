@@ -1,4 +1,4 @@
-.PHONY: help install dev build test lint format clean docker-up docker-down
+.PHONY: help install dev build test lint format clean docker-up docker-down deploy
 
 # Default target
 help:
@@ -20,6 +20,9 @@ help:
 	@echo "  make docker-up   - Start Docker containers"
 	@echo "  make docker-down - Stop Docker containers"
 	@echo "  make docker-logs - View Docker logs"
+	@echo ""
+	@echo "Deployment:"
+	@echo "  make deploy      - Run automated deployment script"
 	@echo ""
 	@echo "Utility:"
 	@echo "  make clean       - Clean build artifacts"
@@ -134,6 +137,17 @@ security:
 	@echo "Running security checks..."
 	npm audit
 	cd backend && pip install safety && safety check -r requirements.txt || true
+
+# Deploy application
+deploy:
+	@echo "Running deployment script..."
+	@if [ -f scripts/deploy.sh ]; then \
+		bash scripts/deploy.sh; \
+	elif [ -f scripts/deploy.ps1 ]; then \
+		powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1; \
+	else \
+		echo "Deployment script not found. Please use manual deployment steps."; \
+	fi
 
 # Full setup for new developers
 setup: setup-env install migrate

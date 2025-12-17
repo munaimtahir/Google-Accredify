@@ -3,10 +3,20 @@ Django REST Framework views for AccrediFy API.
 """
 
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action, api_view, throttle_classes, permission_classes
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import UserRateThrottle
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
 from django.utils import timezone
+from django.http import JsonResponse
+from django.db import connection
+from django.core.exceptions import ValidationError
+from django.conf import settings
 import logging
+import os
 
 from .models import Project, Indicator, Evidence
 from .serializers import (
@@ -18,6 +28,133 @@ from .serializers import (
 from . import ai_services
 
 logger = logging.getLogger(__name__)
+
+
+class AIEndpointThrottle(UserRateThrottle):
+    """Custom throttle for AI endpoints with stricter rate limits."""
+    scope = 'ai_endpoint'
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """Health check endpoint for monitoring and Docker health checks."""
+    try:
+        # Check database connection
+        connection.ensure_connection()
+        db_status = 'connected'
+        
+        return JsonResponse({
+            'status': 'healthy',
+            'database': db_status,
+            'service': 'accredify-api'
+        })
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return JsonResponse({
+            'status': 'unhealthy',
+            'database': 'disconnected',
+            'error': str(e),
+            'service': 'accredify-api'
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register(request):
+    """Register a new user."""
+    try:
+        username = request.data.get('username')
+        password = request.data.get('password')
+        email = request.data.get('email', '')
+        
+        if not username or not password:
+            return Response(
+                {'error': 'username and password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if user already exists
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {'error': 'Username already exists'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            password=password,
+            email=email
+        )
+        
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email
+            },
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.error(f"Error registering user: {str(e)}")
+        return Response(
+            {'error': 'Registration failed'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login(request):
+    """Login and get JWT tokens."""
+    try:
+        username = request.data.get('username')
+        password = request.data.get('password')
+        
+        if not username or not password:
+            return Response(
+                {'error': 'username and password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Authenticate user
+        user = authenticate(username=username, password=password)
+        
+        if user is None:
+            return Response(
+                {'error': 'Invalid credentials'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email
+            },
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error during login: {str(e)}")
+        return Response(
+            {'error': 'Login failed'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -113,6 +250,52 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     queryset = Evidence.objects.all().select_related('indicator')
     serializer_class = EvidenceSerializer
     
+    # Allowed file extensions and MIME types
+    ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.txt', '.csv', '.xls', '.xlsx', 
+                          '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg'}
+    ALLOWED_MIME_TYPES = {
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
+        'text/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/bmp',
+        'image/svg+xml'
+    }
+    MAX_FILE_SIZE = getattr(settings, 'FILE_UPLOAD_MAX_MEMORY_SIZE', 10 * 1024 * 1024)  # 10MB default
+    
+    def _validate_file(self, file):
+        """Validate uploaded file."""
+        # Check file size
+        if file.size > self.MAX_FILE_SIZE:
+            raise ValidationError(
+                f'File size exceeds maximum allowed size of {self.MAX_FILE_SIZE / (1024 * 1024):.1f}MB'
+            )
+        
+        # Check file extension
+        file_ext = os.path.splitext(file.name)[1].lower()
+        if file_ext not in self.ALLOWED_EXTENSIONS:
+            raise ValidationError(
+                f'File type "{file_ext}" is not allowed. Allowed types: {", ".join(self.ALLOWED_EXTENSIONS)}'
+            )
+        
+        # Check MIME type (if available)
+        if hasattr(file, 'content_type') and file.content_type:
+            if file.content_type not in self.ALLOWED_MIME_TYPES:
+                # Log warning but don't reject - MIME types can be unreliable
+                logger.warning(f'Unexpected MIME type {file.content_type} for file {file.name}')
+        
+        # Additional security: check file name
+        if '..' in file.name or '/' in file.name or '\\' in file.name:
+            raise ValidationError('Invalid file name')
+        
+        return True
+    
     def create(self, request, *args, **kwargs):
         """Create new evidence with file upload."""
         # Get indicator ID from request
@@ -131,6 +314,23 @@ class EvidenceViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
+        # Validate file if present
+        if 'file' in request.FILES:
+            try:
+                file = request.FILES['file']
+                self._validate_file(file)
+            except ValidationError as e:
+                return Response(
+                    {'error': str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            except Exception as e:
+                logger.error(f"Error validating file: {str(e)}")
+                return Response(
+                    {'error': 'File validation failed'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
         # Create evidence
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
@@ -142,6 +342,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
 # AI Service API Views
 
 @api_view(['POST'])
+@throttle_classes([AIEndpointThrottle])
 def analyze_checklist(request):
     """Analyze compliance checklist using AI."""
     try:
@@ -157,6 +358,7 @@ def analyze_checklist(request):
 
 
 @api_view(['POST'])
+@throttle_classes([AIEndpointThrottle])
 def analyze_categorization(request):
     """Analyze and categorize compliance indicators."""
     try:
@@ -172,6 +374,7 @@ def analyze_categorization(request):
 
 
 @api_view(['POST'])
+@throttle_classes([AIEndpointThrottle])
 def ask_assistant(request):
     """Ask the AI compliance assistant a question."""
     try:
@@ -195,6 +398,7 @@ def ask_assistant(request):
 
 
 @api_view(['POST'])
+@throttle_classes([AIEndpointThrottle])
 def generate_report_summary(request):
     """Generate a compliance report summary."""
     try:
@@ -210,6 +414,7 @@ def generate_report_summary(request):
 
 
 @api_view(['POST'])
+@throttle_classes([AIEndpointThrottle])
 def convert_document(request):
     """Convert document text to CSV format."""
     try:
@@ -232,6 +437,7 @@ def convert_document(request):
 
 
 @api_view(['POST'])
+@throttle_classes([AIEndpointThrottle])
 def generate_compliance_guide(request):
     """Generate a step-by-step compliance guide."""
     try:
@@ -254,6 +460,7 @@ def generate_compliance_guide(request):
 
 
 @api_view(['POST'])
+@throttle_classes([AIEndpointThrottle])
 def analyze_tasks(request):
     """Analyze checklist for actionable tasks."""
     try:
