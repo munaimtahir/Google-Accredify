@@ -2,6 +2,7 @@
 Tests for AccrediFy API views.
 """
 
+from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -264,6 +265,22 @@ class AIEndpointsTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsInstance(response.data, list)
     
+    def test_analyze_categorization(self):
+        """Test analyze categorization endpoint."""
+        url = reverse('analyze-categorization')
+        data = {
+            'indicators': [
+                {
+                    'section': 'Security',
+                    'status': 'Not Started'
+                }
+            ]
+        }
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+    
     def test_ask_assistant(self):
         """Test AI assistant endpoint."""
         url = reverse('ask-assistant')
@@ -315,6 +332,15 @@ class AIEndpointsTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('csv_content', response.data)
     
+    def test_convert_document_without_text(self):
+        """Test document conversion without text fails."""
+        url = reverse('convert-document')
+        data = {}
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    
     def test_generate_compliance_guide(self):
         """Test compliance guide generation."""
         url = reverse('compliance-guide')
@@ -330,6 +356,15 @@ class AIEndpointsTest(TestCase):
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('guide', response.data)
+    
+    def test_generate_compliance_guide_without_indicator(self):
+        """Test compliance guide without indicator fails."""
+        url = reverse('compliance-guide')
+        data = {}
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
     
     def test_analyze_tasks(self):
         """Test task analysis."""
@@ -348,3 +383,94 @@ class AIEndpointsTest(TestCase):
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsInstance(response.data, list)
+    
+    @patch('api.ai_services.analyze_checklist')
+    def test_analyze_checklist_exception(self, mock_analyze):
+        """Test analyze checklist with service exception."""
+        mock_analyze.side_effect = Exception("Service error")
+        
+        url = reverse('analyze-checklist')
+        data = {'indicators': []}
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn('error', response.data)
+    
+    @patch('api.ai_services.analyze_categorization')
+    def test_analyze_categorization_exception(self, mock_analyze):
+        """Test analyze categorization with service exception."""
+        mock_analyze.side_effect = Exception("Service error")
+        
+        url = reverse('analyze-categorization')
+        data = {'indicators': []}
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn('error', response.data)
+    
+    @patch('api.ai_services.ask_assistant')
+    def test_ask_assistant_exception(self, mock_ask):
+        """Test ask assistant with service exception."""
+        mock_ask.side_effect = Exception("Service error")
+        
+        url = reverse('ask-assistant')
+        data = {'query': 'Test', 'indicators': []}
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn('error', response.data)
+    
+    @patch('api.ai_services.generate_report_summary')
+    def test_generate_report_summary_exception(self, mock_summary):
+        """Test report summary with service exception."""
+        mock_summary.side_effect = Exception("Service error")
+        
+        url = reverse('report-summary')
+        data = {'indicators': []}
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn('error', response.data)
+    
+    @patch('api.ai_services.convert_document_to_csv')
+    def test_convert_document_exception(self, mock_convert):
+        """Test document conversion with service exception."""
+        mock_convert.side_effect = Exception("Service error")
+        
+        url = reverse('convert-document')
+        data = {'document_text': 'Test'}
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn('error', response.data)
+    
+    @patch('api.ai_services.generate_compliance_guide')
+    def test_generate_compliance_guide_exception(self, mock_guide):
+        """Test compliance guide with service exception."""
+        mock_guide.side_effect = Exception("Service error")
+        
+        url = reverse('compliance-guide')
+        data = {'indicator': {'section': 'Test'}}
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn('error', response.data)
+    
+    @patch('api.ai_services.analyze_actionable_tasks')
+    def test_analyze_tasks_exception(self, mock_tasks):
+        """Test task analysis with service exception."""
+        mock_tasks.side_effect = Exception("Service error")
+        
+        url = reverse('analyze-tasks')
+        data = {'indicators': []}
+        
+        response = self.client.post(url, data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn('error', response.data)
