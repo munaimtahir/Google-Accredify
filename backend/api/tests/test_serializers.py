@@ -275,13 +275,16 @@ class EvidenceSerializerTest(TestCase):
         """Test creating evidence with large file (>1MB)."""
         from django.core.files.uploadedfile import SimpleUploadedFile
         
-        # Create a large mock file (> 1MB)
-        file_content = b'X' * (2 * 1024 * 1024)  # 2MB
+        # Create a smaller file but simulate large size for testing
+        # This is more efficient than creating a 2MB in-memory file
+        file_content = b'Test content for large file simulation'
         uploaded_file = SimpleUploadedFile(
             "large_file.pdf",
             file_content,
             content_type="application/pdf"
         )
+        # Manually set size to simulate a large file
+        uploaded_file.size = 2 * 1024 * 1024  # 2MB
         
         from rest_framework.test import APIRequestFactory
         

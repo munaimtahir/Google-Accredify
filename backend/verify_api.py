@@ -10,6 +10,8 @@ import sys
 from datetime import datetime
 
 API_BASE_URL = 'http://127.0.0.1:8000/api'
+# Maximum length for truncated response text
+RESPONSE_TRUNCATE_LENGTH = 200
 
 def test_endpoint(method, endpoint, data=None, files=None, expected_status=200):
     """Test an API endpoint."""
@@ -35,7 +37,7 @@ def test_endpoint(method, endpoint, data=None, files=None, expected_status=200):
         return success, {
             'status_code': response.status_code,
             'expected': expected_status,
-            'response': response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text[:200]
+            'response': response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text[:RESPONSE_TRUNCATE_LENGTH]
         }
     except Exception as e:
         return False, str(e)
