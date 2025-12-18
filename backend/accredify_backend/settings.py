@@ -72,27 +72,34 @@ TEMPLATES = [
 WSGI_APPLICATION = 'accredify_backend.wsgi.application'
 
 # Database
-DATABASE_URL = os.getenv('DATABASE_URL')
-if DATABASE_URL and DATABASE_URL.startswith('postgresql'):
-    try:
-        import dj_database_url
+import dj_database_url
+
+DATABASE_URL = (os.getenv('DATABASE_URL') or '').strip()
+DB_CONN_MAX_AGE = int(os.getenv('DB_CONN_MAX_AGE', '600'))
+
+# Fail fast in production: require PostgreSQL DATABASE_URL when DEBUG=False.
+if not DEBUG:
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is required when DEBUG=False (production).")
+    if not DATABASE_URL.startswith(('postgres://', 'postgresql://')):
+        raise ValueError("Production requires a PostgreSQL DATABASE_URL (postgres:// or postgresql://).")
+
+    DATABASES = {
+        'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=DB_CONN_MAX_AGE),
+    }
+else:
+    # Local development: allow SQLite when DATABASE_URL is not provided.
+    if DATABASE_URL:
         DATABASES = {
-            'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
+            'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=DB_CONN_MAX_AGE),
         }
-    except ImportError:
+    else:
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
                 'NAME': BASE_DIR / 'db.sqlite3',
             }
         }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
