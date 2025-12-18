@@ -52,15 +52,6 @@ db.sqlite3
 /media
 backend/media/
 /staticfiles
-.env
-.env.local
-.env.production
-.env.production.local
-.env.development
-.env.development.local
-.env.test
-.env.test.local
-!.env.example
 .venv
 venv/
 ENV/
