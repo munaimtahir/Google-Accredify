@@ -301,8 +301,7 @@ const Checklist: React.FC<ChecklistProps> = ({ indicators, onUpdateIndicator, on
                           </div>
                         )}
                       </div>
-                      );
-                    })}
+                    )}})}
                     </div>
                 </div>
                 )
