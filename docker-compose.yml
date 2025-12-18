@@ -73,7 +73,9 @@ services:
 
   # Nginx Reverse Proxy (Production)
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
     container_name: accredify_nginx
     restart: unless-stopped
     ports:
@@ -85,7 +87,8 @@ services:
       - static_volume:/var/www/static:ro
       - media_volume:/var/www/media:ro
       - ./dist:/var/www/html:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      # Mount cert directory (rw so the container can generate a self-signed cert if empty)
+      - ./nginx/ssl:/etc/nginx/ssl
     depends_on:
       - backend
     profiles:

@@ -180,12 +180,31 @@ SIMPLE_JWT = {
 }
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = os.getenv(
+def _csv_env(name: str, default: str = '') -> list[str]:
+    value = os.getenv(name, default)
+    # Split on commas, trim whitespace, drop empties
+    return [v.strip() for v in value.split(',') if v.strip()]
+
+
+# Frontend origins that are allowed to call the API from a browser.
+# Override in production via CORS_ALLOWED_ORIGINS.
+CORS_ALLOWED_ORIGINS = _csv_env(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173'
-).split(',')
+    # Local dev + VPS IP (http/https)
+    'http://localhost:3000,http://127.0.0.1:3000,'
+    'http://localhost:5173,http://127.0.0.1:5173,'
+    'http://172.237.95.120,https://172.237.95.120',
+)
 
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF trusted origins (needed when serving over HTTPS behind a reverse proxy).
+# Must include scheme, e.g. https://yourdomain.com
+CSRF_TRUSTED_ORIGINS = _csv_env(
+    'CSRF_TRUSTED_ORIGINS',
+    # Safe defaults for local + VPS IP (set to your real domain in production)
+    'http://localhost,http://127.0.0.1,http://172.237.95.120,https://172.237.95.120',
+)
 
 # File Upload Settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', str(10 * 1024 * 1024)))
@@ -224,5 +243,13 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
     SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False') == 'True'
+    # If running behind a reverse proxy (nginx) that terminates TLS, trust X-Forwarded-Proto.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+    # HSTS (enable only when you are confident HTTPS is correctly configured)
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'True') == 'True'
+    SECURE_HSTS_PRELOAD = os.getenv('SECURE_HSTS_PRELOAD', 'False') == 'True'

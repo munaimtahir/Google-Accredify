@@ -53,9 +53,21 @@ db.sqlite3
 backend/media/
 /staticfiles
 .env
+.env.local
+.env.production
+.env.production.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+!.env.example
 .venv
 venv/
 ENV/
 env/
 .coverage
 htmlcov/
+
+# Nginx SSL certs (never commit private keys)
+nginx/ssl/*
+!nginx/ssl/.gitkeep
