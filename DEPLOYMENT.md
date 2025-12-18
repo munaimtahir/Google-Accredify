@@ -111,6 +111,11 @@ cd Google-Accredify
 
 ## Docker Deployment
 
+### Admin panel access (production)
+
+- **Via nginx (recommended):** `http://<your-domain-or-ip>/admin/`
+- **Via direct Django port (enabled if you publish 8000):** `http://<your-domain-or-ip>:8000/admin/`
+
 ### 1. Create Docker Configuration
 
 Create `Dockerfile` in the project root:
@@ -232,6 +237,16 @@ docker-compose exec web python backend/manage.py collectstatic --noinput
 
 # View logs
 docker-compose logs -f
+```
+
+### Automatic superuser creation (non-interactive)
+
+If you want the Docker deployment to automatically create the Django admin user on startup, set these environment variables (recommended to put in your `.env` on the server):
+
+```env
+DJANGO_SUPERUSER_USERNAME=admin
+DJANGO_SUPERUSER_EMAIL=admin@example.com
+DJANGO_SUPERUSER_PASSWORD=change-me-to-a-strong-password
 ```
 
 ---

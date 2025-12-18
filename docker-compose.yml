@@ -29,7 +29,8 @@ services:
     container_name: accredify_backend
     restart: unless-stopped
     command: >
-      sh -c "python manage.py migrate &&
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py ensure_superuser &&
              python manage.py collectstatic --noinput &&
              gunicorn accredify_backend.wsgi:application --bind 0.0.0.0:8000 --workers 4"
     environment:
@@ -39,9 +40,13 @@ services:
       - DEBUG=${DEBUG:-False}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-172.237.95.120,localhost,127.0.0.1}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://172.237.95.120,http://localhost:3000,http://localhost:5173}
+      # Optional: auto-create an admin user on startup (recommended to set via .env on the server)
+      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-}
+      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-}
+      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-}
     # Do not expose Django publicly; it is served via the nginx reverse proxy on :80.
-    # ports:
-    #   - "8000:8000"
+    ports:
+      - "8000:8000"
     volumes:
       - ./backend:/app
       - static_volume:/app/staticfiles
