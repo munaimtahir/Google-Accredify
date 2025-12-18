@@ -50,7 +50,12 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
+      # python:3.11-slim image doesn't include curl by default; use Python to perform the health check.
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/api/health/').read(); sys.exit(0)\" || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
