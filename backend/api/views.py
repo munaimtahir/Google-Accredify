@@ -13,10 +13,13 @@ from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.http import JsonResponse
 from django.db import connection
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.conf import settings
 import logging
 import os
+import json
+import hashlib
 
 from .models import Project, Indicator, Evidence
 from .serializers import (
@@ -28,6 +31,18 @@ from .serializers import (
 from . import ai_services
 
 logger = logging.getLogger(__name__)
+
+def _ai_cache_key(request, prefix: str, payload: dict) -> str:
+    """
+    Cache key includes user id (if authenticated) and a hash of the request payload.
+    Prevents leaking cached AI responses across different users.
+    """
+    user_part = 'anon'
+    if getattr(request, 'user', None) and getattr(request.user, 'is_authenticated', False):
+        user_part = str(request.user.id)
+    raw = json.dumps(payload, sort_keys=True, default=str, separators=(',', ':'))
+    digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+    return f"accredify:ai:{prefix}:{user_part}:{digest}"
 
 
 class AIEndpointThrottle(UserRateThrottle):
@@ -347,7 +362,14 @@ def analyze_checklist(request):
     """Analyze compliance checklist using AI."""
     try:
         indicators_data = request.data.get('indicators', [])
+        payload = {'indicators': indicators_data}
+        key = _ai_cache_key(request, 'analyze_checklist', payload)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response(cached)
+
         analyzed_indicators = ai_services.analyze_checklist(indicators_data)
+        cache.set(key, analyzed_indicators, timeout=getattr(settings, 'AI_CACHE_TTL', 3600))
         return Response(analyzed_indicators)
     except Exception as e:
         logger.error(f"Error analyzing checklist: {str(e)}")
@@ -363,7 +385,14 @@ def analyze_categorization(request):
     """Analyze and categorize compliance indicators."""
     try:
         indicators_data = request.data.get('indicators', [])
+        payload = {'indicators': indicators_data}
+        key = _ai_cache_key(request, 'analyze_categorization', payload)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response(cached)
+
         analysis = ai_services.analyze_categorization(indicators_data)
+        cache.set(key, analysis, timeout=getattr(settings, 'AI_CACHE_TTL', 3600))
         return Response(analysis)
     except Exception as e:
         logger.error(f"Error analyzing categorization: {str(e)}")
@@ -387,7 +416,14 @@ def ask_assistant(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        payload = {'query': query, 'indicators': indicators_data}
+        key = _ai_cache_key(request, 'ask_assistant', payload)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response({'response': cached})
+
         response_text = ai_services.ask_assistant(query, indicators_data)
+        cache.set(key, response_text, timeout=getattr(settings, 'AI_CACHE_TTL', 3600))
         return Response({'response': response_text})
     except Exception as e:
         logger.error(f"Error in AI assistant: {str(e)}")
@@ -403,7 +439,14 @@ def generate_report_summary(request):
     """Generate a compliance report summary."""
     try:
         indicators_data = request.data.get('indicators', [])
+        payload = {'indicators': indicators_data}
+        key = _ai_cache_key(request, 'report_summary', payload)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response({'summary': cached})
+
         summary = ai_services.generate_report_summary(indicators_data)
+        cache.set(key, summary, timeout=getattr(settings, 'AI_CACHE_TTL', 3600))
         return Response({'summary': summary})
     except Exception as e:
         logger.error(f"Error generating report summary: {str(e)}")
@@ -426,7 +469,14 @@ def convert_document(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        payload = {'document_text': document_text}
+        key = _ai_cache_key(request, 'convert_document', payload)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response({'csv_content': cached})
+
         csv_content = ai_services.convert_document_to_csv(document_text)
+        cache.set(key, csv_content, timeout=getattr(settings, 'AI_CACHE_TTL', 3600))
         return Response({'csv_content': csv_content})
     except Exception as e:
         logger.error(f"Error converting document: {str(e)}")
@@ -449,7 +499,14 @@ def generate_compliance_guide(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        payload = {'indicator': indicator_data}
+        key = _ai_cache_key(request, 'compliance_guide', payload)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response({'guide': cached})
+
         guide = ai_services.generate_compliance_guide(indicator_data)
+        cache.set(key, guide, timeout=getattr(settings, 'AI_CACHE_TTL', 3600))
         return Response({'guide': guide})
     except Exception as e:
         logger.error(f"Error generating compliance guide: {str(e)}")
@@ -465,7 +522,14 @@ def analyze_tasks(request):
     """Analyze checklist for actionable tasks."""
     try:
         indicators_data = request.data.get('indicators', [])
+        payload = {'indicators': indicators_data}
+        key = _ai_cache_key(request, 'analyze_tasks', payload)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response(cached)
+
         tasks = ai_services.analyze_actionable_tasks(indicators_data)
+        cache.set(key, tasks, timeout=getattr(settings, 'AI_CACHE_TTL', 3600))
         return Response(tasks)
     except Exception as e:
         logger.error(f"Error analyzing tasks: {str(e)}")

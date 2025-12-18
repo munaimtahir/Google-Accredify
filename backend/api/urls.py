@@ -5,6 +5,7 @@ URL routing for AccrediFy API.
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from . import views
 
 # Create router for ViewSets
@@ -17,6 +18,10 @@ router.register(r'evidence', views.EvidenceViewSet, basename='evidence')
 urlpatterns = [
     # Health check endpoint (should be accessible without authentication)
     path('health/', views.health_check, name='health-check'),
+
+    # OpenAPI schema + Swagger UI (public)
+    path('schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     
     # Authentication endpoints (public access)
     path('auth/register/', views.register, name='register'),

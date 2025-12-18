@@ -12,6 +12,29 @@ load_dotenv()
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Optional: Sentry error tracking (enabled only if SENTRY_DSN is set)
+SENTRY_DSN = (os.getenv('SENTRY_DSN') or '').strip()
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    def _env_float(name: str, default: float) -> float:
+        raw = (os.getenv(name) or '').strip()
+        if not raw:
+            return default
+        try:
+            return float(raw)
+        except ValueError:
+            return default
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        environment=os.getenv('SENTRY_ENVIRONMENT', 'production'),
+        traces_sample_rate=_env_float('SENTRY_TRACES_SAMPLE_RATE', 0.0),
+        send_default_pii=os.getenv('SENTRY_SEND_DEFAULT_PII', 'False') == 'True',
+    )
+
 # SECURITY WARNING: keep the secret key used in production secret!
 # SECRET_KEY must be set via environment variable
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
@@ -36,6 +59,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'drf_spectacular',
     'corsheaders',
     'api',
 ]
@@ -50,6 +74,29 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Content Security Policy (CSP) - production only
+if not DEBUG:
+    # Add CSP middleware early so headers are applied consistently.
+    MIDDLEWARE = ['csp.middleware.CSPMiddleware', *MIDDLEWARE]
+
+    # Conservative defaults suitable for a single-origin React SPA.
+    # If your frontend calls Gemini directly, connect-src allows Google APIs.
+    CSP_DEFAULT_SRC = ("'self'",)
+    CSP_BASE_URI = ("'self'",)
+    CSP_FORM_ACTION = ("'self'",)
+    CSP_OBJECT_SRC = ("'none'",)
+    CSP_FRAME_ANCESTORS = ("'none'",)
+
+    CSP_SCRIPT_SRC = ("'self'",)
+    CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")
+    CSP_IMG_SRC = ("'self'", "data:", "blob:")
+    CSP_FONT_SRC = ("'self'", "data:")
+    CSP_CONNECT_SRC = (
+        "'self'",
+        "https://generativelanguage.googleapis.com",
+        "https://*.googleapis.com",
+    )
 
 ROOT_URLCONF = 'accredify_backend.urls'
 
@@ -134,6 +181,28 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Cache (Redis optional)
+REDIS_URL = (os.getenv('REDIS_URL') or '').strip()
+AI_CACHE_TTL = int(os.getenv('AI_CACHE_TTL', '3600'))
+
+if REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            },
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'accredify-locmem',
+        }
+    }
+
 # REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -142,6 +211,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.MultiPartParser',
@@ -161,6 +231,14 @@ REST_FRAMEWORK = {
         'user': '1000/hour',  # Authenticated users: 1000 requests per hour
         'ai_endpoint': '30/hour',  # AI endpoints: 30 requests per hour (stricter)
     },
+}
+
+# OpenAPI / Swagger configuration
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'AccrediFy API',
+    'DESCRIPTION': 'AccrediFy backend API (Django REST Framework).',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
 # JWT Configuration
@@ -211,26 +289,67 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', str(10 * 1024 * 1
 DATA_UPLOAD_MAX_MEMORY_SIZE = FILE_UPLOAD_MAX_MEMORY_SIZE
 
 # Logging Configuration
+DJANGO_LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'INFO').upper()
+LOG_DIR = Path(os.getenv('DJANGO_LOG_DIR', str(BASE_DIR / 'logs')))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+APP_LOG_FILE = os.getenv('DJANGO_APP_LOG_FILE', str(LOG_DIR / 'app.log'))
+ERROR_LOG_FILE = os.getenv('DJANGO_ERROR_LOG_FILE', str(LOG_DIR / 'error.log'))
+
+LOG_ROTATE_WHEN = os.getenv('DJANGO_LOG_ROTATE_WHEN', 'midnight')
+LOG_BACKUP_COUNT = int(os.getenv('DJANGO_LOG_BACKUP_COUNT', '30'))
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            'format': '[{levelname}] {asctime} {name}: {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'filename': APP_LOG_FILE,
+            'when': LOG_ROTATE_WHEN,
+            'backupCount': LOG_BACKUP_COUNT,
+            'encoding': 'utf-8',
+            'utc': True,
+            'formatter': 'simple',
+        },
+        'error_file': {
+            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'filename': ERROR_LOG_FILE,
+            'when': LOG_ROTATE_WHEN,
+            'backupCount': LOG_BACKUP_COUNT,
+            'encoding': 'utf-8',
+            'utc': True,
+            'formatter': 'simple',
+            'level': 'ERROR',
         },
     },
     'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
+        'handlers': ['console', 'file'],
+        'level': DJANGO_LOG_LEVEL,
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
+            'handlers': ['console', 'file'],
+            'level': DJANGO_LOG_LEVEL,
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'error_file'],
+            'level': 'ERROR',
             'propagate': False,
         },
         'api': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
