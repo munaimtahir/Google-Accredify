@@ -17,7 +17,6 @@ const Reports: React.FC<ReportsProps> = ({ indicators }) => {
 
   useEffect(() => {
     handleGenerateSummary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators]);
 
   const handleGenerateSummary = async () => {

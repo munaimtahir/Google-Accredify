@@ -5,6 +5,7 @@ Tests for AccrediFy API views.
 from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
+from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 from rest_framework import status
 from api.models import Project, Indicator, Evidence
@@ -17,6 +18,8 @@ class ProjectViewSetTest(TestCase):
     def setUp(self):
         """Set up test client and data."""
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser_projects", password="pass12345")
+        self.client.force_authenticate(user=self.user)
         self.project = Project.objects.create(
             name="Test Project",
             description="Test Description"
@@ -119,6 +122,8 @@ class IndicatorViewSetTest(TestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser_indicators", password="pass12345")
+        self.client.force_authenticate(user=self.user)
         self.project = Project.objects.create(name="Test Project")
         self.indicator = Indicator.objects.create(
             project=self.project,
@@ -161,6 +166,8 @@ class EvidenceViewSetTest(TestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser_evidence", password="pass12345")
+        self.client.force_authenticate(user=self.user)
         self.project = Project.objects.create(name="Test Project")
         self.indicator = Indicator.objects.create(
             project=self.project,
@@ -238,6 +245,8 @@ class AIEndpointsTest(TestCase):
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
+        self.user = User.objects.create_user(username="testuser_ai", password="pass12345")
+        self.client.force_authenticate(user=self.user)
         self.project = Project.objects.create(name="Test")
         self.indicator = Indicator.objects.create(
             project=self.project,
