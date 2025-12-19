@@ -82,13 +82,29 @@ export const api = {
 
   // AI Services
   analyzeChecklist: async (indicators: Omit<Indicator, 'id' | 'evidence' | 'lastUpdated'>[]): Promise<Indicator[]> => {
+    // #region agent log
+    fetch('http://localhost:7249/ingest/9253a22a-7967-495e-aac7-a143d876ac2f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:84',message:'analyzeChecklist called',data:{indicators_count:indicators.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
     const response = await fetch(`${API_BASE_URL}/analyze-checklist/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ indicators }),
     });
-    if (!response.ok) throw new Error('Failed to analyze checklist');
-    return response.json();
+    // #region agent log
+    fetch('http://localhost:7249/ingest/9253a22a-7967-495e-aac7-a143d876ac2f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:90',message:'response received',data:{ok:response.ok,status:response.status,statusText:response.statusText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
+    if (!response.ok) {
+      // #region agent log
+      const errorText = await response.text().catch(() => '');
+      fetch('http://localhost:7249/ingest/9253a22a-7967-495e-aac7-a143d876ac2f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:92',message:'response not ok',data:{status:response.status,errorText:errorText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      throw new Error('Failed to analyze checklist');
+    }
+    const result = await response.json();
+    // #region agent log
+    fetch('http://localhost:7249/ingest/9253a22a-7967-495e-aac7-a143d876ac2f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:98',message:'result parsed',data:{result_count:result.length,has_ai_analysis:result.some((i:any)=>i.aiAnalysis)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
+    return result;
   },
 
   analyzeComplianceCategorization: async (indicators: Indicator[]): Promise<any> => {

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # Constants
 MAX_DOCUMENT_LENGTH = 3000  # Maximum document text length to send to AI
 MAX_INDICATORS_FOR_PROMPT = 10  # Maximum number of indicators to include in prompts
+ANALYZE_CHECKLIST_BATCH_SIZE = 25  # Number of indicators to analyze per API call (balance between token limits and efficiency)
 
 # Google Gemini configuration
 def _get_gemini_model():
@@ -19,54 +20,172 @@ def _get_gemini_model():
     Returns None if API key is not configured.
     """
     import google.generativeai as genai
+    import json
     
     api_key = os.getenv('GEMINI_API_KEY')
+    # #region agent log
+    log_path = '/root/accredify/google-accredify/.cursor/debug.log'
+    try:
+        with open(log_path, 'a') as f:
+            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'ai_services.py:23', 'message': '_get_gemini_model called', 'data': {'has_api_key': bool(api_key), 'api_key_length': len(api_key) if api_key else 0}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+    except: pass
+    # #endregion
     if not api_key:
         logger.warning("GEMINI_API_KEY not configured. AI features will be disabled.")
         return None
     
     try:
         genai.configure(api_key=api_key)
-        return genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-pro')
+        # #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'ai_services.py:30', 'message': 'model created successfully', 'data': {'model_type': str(type(model))}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        except: pass
+        # #endregion
+        return model
     except Exception as e:
+        # #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'ai_services.py:32', 'message': 'model creation failed', 'data': {'error_type': str(type(e).__name__), 'error_message': str(e)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        except: pass
+        # #endregion
         logger.error(f"Failed to configure Gemini model: {str(e)}")
         return None
 
 
 def analyze_checklist(indicators_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Analyze compliance checklist and provide suggestions."""
+    """Analyze compliance checklist and provide suggestions for all indicators in batches."""
+    # #region agent log
+    import json
+    log_path = '/root/accredify/google-accredify/.cursor/debug.log'
+    try:
+        with open(log_path, 'a') as f:
+            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'ai_services.py:57', 'message': 'analyze_checklist called', 'data': {'indicators_count': len(indicators_data), 'has_api_key': bool(os.getenv('GEMINI_API_KEY'))}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+    except: pass
+    # #endregion
     model = _get_gemini_model()
+    # #region agent log
+    try:
+        with open(log_path, 'a') as f:
+            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'ai_services.py:67', 'message': 'model check', 'data': {'model_is_none': model is None, 'model_type': str(type(model))}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+    except: pass
+    # #endregion
     if not model:
+        # #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'ai_services.py:74', 'message': 'returning early - no model', 'data': {'indicators_count': len(indicators_data)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        except: pass
+        # #endregion
         return indicators_data
     
+    # Process indicators in batches to handle large checklists (150-300 indicators)
+    total_indicators = len(indicators_data)
+    batch_size = ANALYZE_CHECKLIST_BATCH_SIZE
+    num_batches = (total_indicators + batch_size - 1) // batch_size  # Ceiling division
+    
+    # #region agent log
     try:
-        prompt = f"""
-        Analyze the following compliance checklist and provide suggestions for each indicator.
-        Focus on identifying potential risks, gaps, and recommendations.
+        with open(log_path, 'a') as f:
+            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'ai_services.py:85', 'message': 'starting batch processing', 'data': {'total_indicators': total_indicators, 'batch_size': batch_size, 'num_batches': num_batches}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+    except: pass
+    # #endregion
+    
+    try:
+        for batch_idx in range(num_batches):
+            start_idx = batch_idx * batch_size
+            end_idx = min(start_idx + batch_size, total_indicators)
+            batch_indicators = indicators_data[start_idx:end_idx]
+            
+            # #region agent log
+            try:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'ai_services.py:93', 'message': 'processing batch', 'data': {'batch_idx': batch_idx, 'start_idx': start_idx, 'end_idx': end_idx, 'batch_size': len(batch_indicators)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+            except: pass
+            # #endregion
+            
+            prompt = f"""
+            Analyze the following compliance checklist indicators and provide suggestions for each one.
+            Focus on identifying potential risks, gaps, and recommendations.
+            
+            Checklist Indicators ({len(batch_indicators)} items):
+            {_format_indicators_for_prompt(batch_indicators)}
+            
+            For each indicator, provide:
+            1. Risk level (Low/Medium/High)
+            2. Key recommendations
+            3. Priority actions
+            
+            Provide a concise analysis for each indicator. Return your analysis in a structured format.
+            """
+            
+            # #region agent log
+            try:
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'ai_services.py:110', 'message': 'before API call', 'data': {'prompt_length': len(prompt), 'indicators_in_batch': len(batch_indicators)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+            except: pass
+            # #endregion
+            
+            response = model.generate_content(prompt)
+            
+            # #region agent log
+            try:
+                response_text = getattr(response, 'text', None)
+                response_type = str(type(response))
+                has_text = hasattr(response, 'text')
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'ai_services.py:118', 'message': 'after API call', 'data': {'batch_idx': batch_idx, 'response_type': response_type, 'has_text_attr': has_text, 'response_text_length': len(response_text) if response_text else 0, 'response_text_preview': response_text[:100] if response_text else None}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+            except Exception as log_err:
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'ai_services.py:118', 'message': 'after API call - log error', 'data': {'batch_idx': batch_idx, 'log_error': str(log_err)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+                except: pass
+            # #endregion
+            
+            # Add analysis to each indicator in the batch
+            response_text = getattr(response, 'text', '') if hasattr(response, 'text') else ''
+            # Split response by indicator if possible, otherwise use shared analysis
+            analysis_per_indicator = response_text.split('\n\n') if response_text else []
+            
+            for i, indicator in enumerate(batch_indicators):
+                if not indicator.get('aiAnalysis'):
+                    # Use indicator-specific analysis if available, otherwise use shared analysis
+                    if i < len(analysis_per_indicator) and analysis_per_indicator[i].strip():
+                        analysis_content = analysis_per_indicator[i].strip()[:500]  # Limit length
+                    else:
+                        # Use shared analysis with indicator context
+                        analysis_content = f"Analysis for {indicator.get('indicator', 'indicator')} ({indicator.get('section', 'N/A')}): {response_text[:300]}"
+                    
+                    indicator['aiAnalysis'] = {
+                        'content': analysis_content,
+                        'timestamp': _get_current_timestamp()
+                    }
+            
+            # #region agent log
+            try:
+                analyzed_in_batch = sum(1 for ind in batch_indicators if ind.get('aiAnalysis'))
+                with open(log_path, 'a') as f:
+                    f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'C', 'location': 'ai_services.py:145', 'message': 'batch processed', 'data': {'batch_idx': batch_idx, 'analyzed_in_batch': analyzed_in_batch, 'batch_size': len(batch_indicators)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+            except: pass
+            # #endregion
         
-        Checklist:
-        {_format_indicators_for_prompt(indicators_data[:5])}  # Limit to avoid token limits
-        
-        For each indicator, provide:
-        1. Risk level (Low/Medium/High)
-        2. Key recommendations
-        3. Priority actions
-        
-        Return your analysis in a structured format.
-        """
-        
-        response = model.generate_content(prompt)
-        
-        # For now, just add the analysis to the first few indicators
-        for i, indicator in enumerate(indicators_data[:5]):
-            if not indicator.get('aiAnalysis'):
-                indicator['aiAnalysis'] = {
-                    'content': f"Analysis for {indicator.get('indicator', 'indicator')}: {response.text[:200]}",
-                    'timestamp': _get_current_timestamp()
-                }
-        
+        # #region agent log
+        try:
+            total_analyzed = sum(1 for ind in indicators_data if ind.get('aiAnalysis'))
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'C', 'location': 'ai_services.py:152', 'message': 'all batches complete', 'data': {'total_analyzed': total_analyzed, 'total_indicators': len(indicators_data)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        except: pass
+        # #endregion
         return indicators_data
     except Exception as e:
+        # #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'D', 'location': 'ai_services.py:155', 'message': 'exception caught', 'data': {'error_type': str(type(e).__name__), 'error_message': str(e), 'error_repr': repr(e)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        except: pass
+        # #endregion
         logger.error(f"Error analyzing checklist: {str(e)}")
         return indicators_data
 

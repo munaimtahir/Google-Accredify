@@ -360,18 +360,45 @@ class EvidenceViewSet(viewsets.ModelViewSet):
 @throttle_classes([AIEndpointThrottle])
 def analyze_checklist(request):
     """Analyze compliance checklist using AI."""
+    # #region agent log
+    import json
+    log_path = '/root/accredify/google-accredify/.cursor/debug.log'
+    try:
+        with open(log_path, 'a') as f:
+            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'E', 'location': 'views.py:361', 'message': 'analyze_checklist endpoint called', 'data': {'has_indicators': 'indicators' in request.data, 'indicators_count': len(request.data.get('indicators', []))}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+    except: pass
+    # #endregion
     try:
         indicators_data = request.data.get('indicators', [])
         payload = {'indicators': indicators_data}
         key = _ai_cache_key(request, 'analyze_checklist', payload)
         cached = cache.get(key)
+        # #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'E', 'location': 'views.py:368', 'message': 'cache check', 'data': {'has_cached': cached is not None}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        except: pass
+        # #endregion
         if cached is not None:
             return Response(cached)
 
         analyzed_indicators = ai_services.analyze_checklist(indicators_data)
+        # #region agent log
+        try:
+            analyzed_count = sum(1 for ind in analyzed_indicators if ind.get('aiAnalysis'))
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'E', 'location': 'views.py:371', 'message': 'after analyze_checklist call', 'data': {'analyzed_count': analyzed_count, 'total_indicators': len(analyzed_indicators)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        except: pass
+        # #endregion
         cache.set(key, analyzed_indicators, timeout=getattr(settings, 'AI_CACHE_TTL', 3600))
         return Response(analyzed_indicators)
     except Exception as e:
+        # #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'E', 'location': 'views.py:374', 'message': 'endpoint exception', 'data': {'error_type': str(type(e).__name__), 'error_message': str(e)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        except: pass
+        # #endregion
         logger.error(f"Error analyzing checklist: {str(e)}")
         return Response(
             {'error': str(e)},
