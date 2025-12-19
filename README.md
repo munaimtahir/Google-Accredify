@@ -58,15 +58,12 @@ A comprehensive compliance management platform that leverages AI to streamline c
    npm install
    ```
 
-3. **Configure environment variables**
+3. **Configure environment variables** (optional, only if needed for VITE_API_URL)
    ```bash
    cp .env.example .env.local
    ```
    
-   Edit `.env.local` and add your Gemini API key:
-   ```env
-   GEMINI_API_KEY=your_api_key_here
-   ```
+   Note: `GEMINI_API_KEY` is only needed in the backend `.env` file. The frontend calls AI services through the backend API.
 
 4. **Start the development server**
    ```bash
@@ -267,11 +264,11 @@ cd backend && python manage.py collectstatic
 ### Environment Variables (Production)
 
 ```env
-# Frontend (.env.production)
+# Frontend (.env.production) - only if custom API URL needed
 VITE_API_URL=https://api.yourdomain.com
-GEMINI_API_KEY=your_production_api_key
 
-# Backend (.env)
+# Backend (.env) or Docker Compose (.env/compose.env)
+GEMINI_API_KEY=your_production_api_key
 DJANGO_SECRET_KEY=strong_random_key
 DEBUG=False
 ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com

@@ -211,7 +211,17 @@ volumes:
 
 ### 2. Environment Configuration
 
-Create `.env` file:
+For Docker Compose, use the template and create your secret file:
+
+```bash
+# Copy the template
+cp compose.env.example compose.env
+
+# Edit compose.env with your real values (this file is gitignored)
+# Set GEMINI_API_KEY=your_actual_key_here to enable AI features
+```
+
+Or create `.env` file (Docker Compose auto-loads `.env` from repo root):
 
 ```env
 DB_PASSWORD=your_secure_db_password
@@ -296,11 +306,12 @@ cd /home/accredify/Google-Accredify
 # Install dependencies
 npm ci
 
-# Create production environment file
+# Create production environment file (if custom API URL needed)
 cat > .env.production << EOF
 VITE_API_URL=https://yourdomain.com/api
-GEMINI_API_KEY=your_gemini_api_key
 EOF
+
+# Note: GEMINI_API_KEY is only needed in backend/.env or Docker Compose .env file
 
 # Build frontend
 npm run build

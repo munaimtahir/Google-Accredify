@@ -13,8 +13,7 @@
 2. **Frontend Setup**
    ```bash
    npm install
-   cp .env.example .env.local
-   # Edit .env.local and add your GEMINI_API_KEY
+   # No .env.local needed - AI calls go through backend API
    npm run dev
    ```
    Open http://localhost:3000
